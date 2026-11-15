@@ -1,10 +1,10 @@
 {
   "seed": 7,
-  "pack_id": "generic-school",
+  "pack_id": "generic-maths",
   "note": "Synthetic data. Planted patterns are what an honest analysis should find.",
   "learners": [
     {
-      "learner_id": "lrn_9f43cfeadf",
+      "learner_id": "lrn_5ca31a49dd",
       "alias": "Learner A-17",
       "planted": [
         {
@@ -30,10 +30,10 @@
             "attendance"
           ],
           "target_periods": [
-            "2024-T1"
+            "2024-T2"
           ],
           "absence_evidence_ids": [
-            "evd_e8612390ba"
+            "evd_eb91c3098c"
           ],
           "low_concepts_observed": [
             "adding-fractions-like",
@@ -67,17 +67,17 @@
           "scope_id": "geometry",
           "skill": "spatial-reasoning",
           "periods": [
-            "2021-T2",
-            "2022-T2",
-            "2023-T1",
+            "2021-T3",
+            "2022-T3",
             "2023-T2",
-            "2024-T2"
+            "2023-T3",
+            "2024-T3"
           ]
         }
       ]
     },
     {
-      "learner_id": "lrn_5ab0fa6616",
+      "learner_id": "lrn_70591631cd",
       "alias": "Learner B-04",
       "planted": [
         {
@@ -90,39 +90,23 @@
             "2024-T2"
           ],
           "concepts": [
-            "angles",
-            "animal-groups",
-            "cells",
-            "chemical-change",
-            "coordinates-first-quadrant",
-            "density",
-            "ecosystems",
-            "expressions-variables",
-            "food-chains",
-            "forces-and-motion",
-            "human-body-systems",
-            "inference",
-            "light-and-shadow",
-            "line-graphs",
-            "linear-relations",
-            "mean-median-mode",
-            "misleading-data",
-            "mixtures-separating",
-            "one-step-equations",
-            "particles-model",
-            "photosynthesis",
-            "pie-charts",
-            "probability-basic",
-            "rocks-and-soil",
-            "simple-circuits",
-            "speed-distance-time",
-            "states-of-matter",
-            "tables-and-charts",
-            "transformations",
-            "two-step-equations",
-            "water-cycle"
+            "adding-fractions-like",
+            "adding-fractions-unlike",
+            "angle-sums",
+            "area-triangles-parallelograms",
+            "circles-circumference-area",
+            "classify-triangles-quads",
+            "comparing-fractions",
+            "coordinates-four-quadrants",
+            "division-long",
+            "equivalent-fractions",
+            "percentages",
+            "ratio-concept",
+            "ratio-sharing",
+            "units-conversion",
+            "volume"
           ],
-          "n_concepts": 31,
+          "n_concepts": 15,
           "not_helpful_approaches": [
             "visual_models",
             "worked_examples",
@@ -135,7 +119,7 @@
       ]
     },
     {
-      "learner_id": "lrn_6b0202cbeb",
+      "learner_id": "lrn_0fe09ce15c",
       "alias": "Learner C-31",
       "planted": [
         {
@@ -144,10 +128,10 @@
           "scope_id": "data",
           "skill": "working-with-data",
           "periods": [
-            "2021-T2",
-            "2022-T2",
-            "2023-T2",
-            "2024-T2"
+            "2021-T3",
+            "2022-T3",
+            "2023-T3",
+            "2024-T3"
           ]
         },
         {
@@ -155,20 +139,15 @@
           "scope": "skill",
           "scope_id": "pattern-finding",
           "periods": [
-            "2021-T2",
-            "2021-T3",
             "2022-T1",
-            "2022-T3",
-            "2023-T3",
             "2024-T1",
-            "2024-T2",
             "2024-T3"
           ]
         }
       ]
     },
     {
-      "learner_id": "lrn_faed09eb7e",
+      "learner_id": "lrn_d096dd6373",
       "alias": "Learner D-09",
       "planted": [
         {
@@ -185,7 +164,7 @@
       ]
     },
     {
-      "learner_id": "lrn_360814fe88",
+      "learner_id": "lrn_6b0202cbeb",
       "alias": "Learner E-22",
       "planted": [
         {
@@ -194,13 +173,13 @@
             "2024-T2",
             "2024-T3"
           ],
-          "n_evidence": 8,
+          "n_evidence": 9,
           "expected_answer": "not enough data to say anything"
         }
       ]
     },
     {
-      "learner_id": "lrn_081931f60f",
+      "learner_id": "lrn_4d20faa1cf",
       "alias": "Learner F-12",
       "planted": [
         {
@@ -210,58 +189,58 @@
       ]
     },
     {
-      "learner_id": "lrn_820be72fe8",
-      "alias": "Learner R-08",
-      "planted": []
-    },
-    {
-      "learner_id": "lrn_aec36571b3",
+      "learner_id": "lrn_eb07211625",
       "alias": "Learner T-20",
       "planted": []
     },
     {
-      "learner_id": "lrn_486b94961e",
+      "learner_id": "lrn_1f0c13ee19",
       "alias": "Learner H-10",
       "planted": []
     },
     {
-      "learner_id": "lrn_a3dc09bffb",
+      "learner_id": "lrn_def932bf13",
       "alias": "Learner K-47",
       "planted": []
     },
     {
-      "learner_id": "lrn_b51354dd35",
+      "learner_id": "lrn_65a7ca3a06",
       "alias": "Learner Z-28",
       "planted": []
     },
     {
-      "learner_id": "lrn_dfebba7b2d",
+      "learner_id": "lrn_6b26b733f7",
       "alias": "Learner W-54",
+      "planted": []
+    },
+    {
+      "learner_id": "lrn_7cfce9287a",
+      "alias": "Learner J-71",
       "planted": []
     }
   ],
   "inbox": {
     "quiz_sheet_A17_2025-T1.md": {
       "alias": "Learner A-17",
-      "learner_id": "lrn_9f43cfeadf",
+      "learner_id": "lrn_5ca31a49dd",
       "period": "2025-T1",
       "expect": "low scores on ratio and proportion items"
     },
     "teacher_note_A17_sw.txt": {
       "alias": "Learner A-17",
-      "learner_id": "lrn_9f43cfeadf",
+      "learner_id": "lrn_5ca31a49dd",
       "language": "sw"
     },
     "teacher_note_ar.txt": {
       "alias": "Learner T-20",
-      "learner_id": "lrn_aec36571b3",
+      "learner_id": "lrn_eb07211625",
       "language": "ar"
     },
     "register_2025-T1.csv": {
       "aliases": [
         "Learner A-17",
         "Learner T-20",
-        "Learner R-08"
+        "Learner T-20"
       ],
       "period": "2025-T1"
     }
