@@ -127,3 +127,22 @@ def test_a_handover_note_must_not_be_written_to_a_parent():
     assert workflow._speaks_to_wrong_reader(to_parent, "teacher_handover")
     assert not workflow._speaks_to_wrong_reader(to_parent, "guardian")
     assert not workflow._speaks_to_wrong_reader("This learner's ratio results have been low.", "teacher_handover")
+
+
+def test_a_shortened_alias_is_still_the_same_learner():
+    # Found by running a teacher note by hand: the model read "Learner C-31" as "C-31"
+    # and the whole note was refused as belonging to someone else.
+    assert workflow._same_learner("C-31", "Learner C-31")
+    assert workflow._same_learner("learner c-31", "Learner C-31")
+    assert workflow._same_learner(None, "Learner C-31")
+    assert not workflow._same_learner("C-13", "Learner C-31")
+    assert not workflow._same_learner("Learner A-17", "Learner C-31")
+    assert not workflow._same_learner("Amina", "Learner C-31")
+
+
+def test_grade_comes_from_enrolment_when_the_document_gives_none():
+    learner = {"start_year": 2021, "start_grade": 3}
+    assert workflow._grade_in(learner, 2025) == 7
+    assert workflow._grade_in(learner, 2021) == 3
+    assert workflow._grade_in({"grade_now": 6}, 2025) == 6
+    assert workflow._grade_in({}, 2025) is None

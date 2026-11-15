@@ -348,7 +348,10 @@ button.linkish:hover { text-decoration: underline; background: transparent; }
 @media (max-width: 800px) {
   .app { grid-template-columns: 1fr; }
   .side { position: static; height: auto; padding: 14px 16px; gap: 12px; }
-  #nav { grid-auto-flow: column; overflow-x: auto; }
+  #nav { display: flex; flex-wrap: wrap; gap: 4px; }
+  #nav button { width: auto; min-height: 38px; padding: 6px 10px; gap: 8px; }
+  #nav .badge { margin-left: 2px; }
+  .app > *, main.content > *, .grid2 > *, .card, .card > * { min-width: 0; }
   #nav button span:not(.badge) { white-space: nowrap; }
   main.content { padding: 18px 16px 36px; }
   .pagehead h2 { font-size: 22px; }
@@ -478,9 +481,10 @@ function stopTimers() {
 }
 
 // ---------------------------------------------------------------- evidence table
+const EVIDENCE_FIRST = 12;
 function evidenceTable(rows) {
   if (!rows || !rows.length) return h("p", { class: "muted", text: "No records." });
-  const body = rows.map((r) => {
+  const row = (r) => {
     const words = r.raw_text
       ? h("span", { lang: r.language || "en", dir: "auto", text: r.raw_text })
       : h("span", { class: "muted", text: r.kind === "attendance" ? (r.absent_days + " day(s) absent") : "no words recorded" });
@@ -492,10 +496,16 @@ function evidenceTable(rows) {
       h("td", { class: "words" }, words, r.language && r.language !== "en" ? h("span", { class: "muted small", text: " (" + langName(r.language) + ")" }) : null),
       h("td", { text: r.source_ref }),
       h("td", { class: "small muted", text: r.id + (r.status === "needs_review" ? " (needs review)" : "") }));
-  });
-  return h("div", { class: "tablewrap" }, h("table", {},
+  };
+  // Long lists start short, so the decision buttons under them stay within reach.
+  const tbody = h("tbody", {}, rows.slice(0, EVIDENCE_FIRST).map(row));
+  const wrap = h("div", { class: "tablewrap" }, h("table", {},
     h("thead", {}, h("tr", {}, ["Period", "Type", "Concept", "Score", "Teacher's words", "Source", "Record"].map((t) => h("th", { scope: "col", text: t })))),
-    h("tbody", {}, body)));
+    tbody));
+  if (rows.length <= EVIDENCE_FIRST) return wrap;
+  const more = h("button", { type: "button", text: "Show all " + rows.length + " records" });
+  more.onclick = () => { tbody.append(...rows.slice(EVIDENCE_FIRST).map(row)); more.remove(); };
+  return h("div", {}, wrap, h("p", { class: "small muted", text: "Showing the first " + EVIDENCE_FIRST + " of " + rows.length + " records." }), more);
 }
 function db_period(r) { return r.year + "-T" + r.term; }
 
