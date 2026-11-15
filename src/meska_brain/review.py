@@ -1,5 +1,6 @@
-"""Teacher decisions. Only a named teacher approves, edits or rejects. These functions are never
-exposed over MCP; the web app calls them for a signed-in teacher."""
+"""Teacher decisions. Only a named teacher approves, edits or rejects a finding or a note, or answers
+the agent's question about a missing record. These functions are never exposed over MCP; the web app
+calls them for a teacher chosen by name."""
 
 from __future__ import annotations
 
@@ -9,6 +10,7 @@ from . import audit, db, guard
 
 FINDING_DECISIONS = ("approved", "edited", "rejected")
 SUMMARY_DECISIONS = ("approved", "rejected")
+REQUEST_ANSWERS = ("provided", "no_record")
 
 
 def expand_finding(conn, finding: dict) -> dict:
@@ -33,7 +35,10 @@ def pending(db_path=None) -> dict:
                 expand_finding(conn, f) for f in db.rows(
                     conn, f"SELECT * FROM findings WHERE id IN ({','.join('?' for _ in ids)})", tuple(ids))])
             summaries.append(summary)
-    return {"findings": findings, "summaries": summaries}
+        requests = db.rows(conn, "SELECT r.*, l.alias AS learner_alias FROM record_requests r "
+                                 "JOIN learners l ON l.id = r.learner_id WHERE r.status = 'open' "
+                                 "ORDER BY r.asked_at, r.id")
+    return {"findings": findings, "summaries": summaries, "requests": requests}
 
 
 def _teacher(conn, teacher_id: str) -> dict:
@@ -108,5 +113,39 @@ def decide_summary(summary_id: str, decision: str, teacher_id: str, note: str | 
         result["finding_ids"] = db.jload(result["finding_ids"], [])
         audit.write_row(conn, "decide_summary", {"summary_id": summary_id, "decision": decision,
                                                  "teacher_id": teacher_id, "note": note},
+                        result, True, int((time.perf_counter() - started) * 1000), actor=f"teacher:{teacher_id}")
+    return result
+
+
+def answer_request(request_id: str, answer: str, teacher_id: str, text: str | None = None,
+                   file_name: str | None = None, year: int | None = None, term: int | None = None,
+                   *, db_path=None) -> dict:
+    """Answer the agent's question about a missing record: 'provided' with the teacher's own words or a
+    file in the inbox, or 'no_record'. The answer and its audit row share one transaction."""
+    started = time.perf_counter()
+    if answer not in REQUEST_ANSWERS:
+        raise ValueError(f"Answer must be one of: {', '.join(REQUEST_ANSWERS)}.")
+    text = (text or "").strip() or None
+    if answer == "provided" and not (text or file_name):
+        raise ValueError("A 'provided' answer needs the record: type it, or choose a file from the inbox.")
+    if answer == "no_record":
+        text, file_name, year, term = None, None, None, None
+    if term is not None and term not in (1, 2, 3):
+        raise ValueError(f"Term must be 1, 2 or 3, got {term}.")
+    with db.connect(db_path) as conn:
+        _teacher(conn, teacher_id)
+        changed = conn.execute(
+            "UPDATE record_requests SET status = ?, answered_by = ?, answered_at = ?, answer_text = ?, "
+            "answer_file = ?, answer_year = ?, answer_term = ? WHERE id = ? AND status = 'open'",
+            (answer, teacher_id, db.now_iso(), text, file_name, year, term, request_id)).rowcount
+        if not changed:
+            row = db.one(conn, "SELECT status FROM record_requests WHERE id = ?", (request_id,))
+            if row is None:
+                raise ValueError(f"Unknown request '{request_id}'.")
+            raise ValueError(f"Request '{request_id}' was already answered ({row['status']}).")
+        result = db.one(conn, "SELECT * FROM record_requests WHERE id = ?", (request_id,))
+        audit.write_row(conn, "answer_request", {"request_id": request_id, "answer": answer,
+                                                 "teacher_id": teacher_id, "text": text, "file_name": file_name,
+                                                 "year": year, "term": term},
                         result, True, int((time.perf_counter() - started) * 1000), actor=f"teacher:{teacher_id}")
     return result

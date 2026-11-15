@@ -15,6 +15,7 @@ from typing import Any
 from .config import get_settings
 
 _SCHEMA = Path(__file__).with_name("schema.sql")
+_schema_checked: set[str] = set()
 
 
 def now_iso() -> str:
@@ -22,7 +23,7 @@ def now_iso() -> str:
 
 
 def new_id(prefix: str) -> str:
-    """Short random id with a type prefix: lrn_, tch_, unt_, evd_, fnd_, sum_, run_."""
+    """Short random id with a type prefix: lrn_, tch_, unt_, evd_, fnd_, sum_, req_, run_."""
     return f"{prefix}_{secrets.token_hex(5)}"
 
 
@@ -41,6 +42,10 @@ def connect(db_path: Path | str | None = None) -> Iterator[sqlite3.Connection]:
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path, timeout=30, check_same_thread=False)
     conn.row_factory = sqlite3.Row
+    if str(path) not in _schema_checked:
+        # Once per file per process: a database made by an older version gains any new table.
+        conn.executescript(_SCHEMA.read_text(encoding="utf-8"))
+        _schema_checked.add(str(path))
     conn.execute("PRAGMA foreign_keys = ON")
     try:
         yield conn

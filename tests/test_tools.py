@@ -248,3 +248,57 @@ def test_timeline_refuses_an_unbounded_limit(db_path, limit):
     learner_id = tools.list_learners(db_path=db_path)["learners"][0]["learner_id"]
     with pytest.raises(ValueError, match="limit must be between"):
         tools.get_learner_timeline(learner_id=learner_id, limit=limit, db_path=db_path)
+
+
+# ---------------------------------------------------------------- asking for a missing record
+
+def _unrecorded_concept(db_path, learner_id="lrn_a") -> str:
+    """A topic in the learner's curriculum with no scored evidence."""
+    from meska_brain.curriculum import load_pack
+    with db.connect(db_path) as conn:
+        pack_id = db.one(conn, "SELECT pack_id FROM learners WHERE id = ?", (learner_id,))["pack_id"]
+        seen = {r["concept_id"] for r in db.rows(conn, "SELECT DISTINCT concept_id FROM evidence WHERE learner_id = ? "
+                                                       "AND score IS NOT NULL", (learner_id,))}
+    return next(c for c in load_pack(pack_id).concepts if c not in seen)
+
+
+QUESTION = "Results in ratios are low and there are no records for this earlier topic. Do you have a quiz or a note?"
+
+
+def test_request_record_asks_once_and_is_audited(db_path):
+    concept = _unrecorded_concept(db_path)
+    first = tools.request_record(learner_id="lrn_a", concept_id=concept, question=QUESTION, db_path=db_path,
+                                 _actor="agent", _run_id="run_1")
+    assert first["status"] == "open" and first["request_id"].startswith("req_")
+    again = tools.request_record(learner_id="lrn_a", concept_id=concept, question=QUESTION, db_path=db_path)
+    assert again["request_id"] == first["request_id"] and again["warnings"]
+    with db.connect(db_path) as conn:
+        assert db.one(conn, "SELECT COUNT(*) AS n FROM record_requests")["n"] == 1
+        row = db.one(conn, "SELECT actor, run_id, ok FROM audit_log WHERE tool = 'request_record' ORDER BY id LIMIT 1")
+    assert (row["actor"], row["run_id"], row["ok"]) == ("agent", "run_1", 1)
+
+
+def test_request_record_refusals(db_path):
+    concept = _unrecorded_concept(db_path)
+    with pytest.raises(ValueError, match="already .* scored records"):
+        tools.request_record(learner_id="lrn_a", concept_id="division", question=QUESTION, db_path=db_path)
+    with pytest.raises(ValueError, match="rejected"):
+        tools.request_record(learner_id="lrn_a", concept_id=concept, db_path=db_path,
+                             question="This lazy, slow learner has no records. Do you have any?")
+    with pytest.raises(ValueError, match="Unknown concept"):
+        tools.request_record(learner_id="lrn_a", concept_id="no-such-topic", question=QUESTION, db_path=db_path)
+    with pytest.raises(ValueError, match="Unknown learner"):
+        tools.request_record(learner_id="lrn_zz", concept_id=concept, question=QUESTION, db_path=db_path)
+
+
+def test_a_teacher_is_not_asked_the_same_question_twice(db_path):
+    concept = _unrecorded_concept(db_path)
+    asked = tools.request_record(learner_id="lrn_a", concept_id=concept, question=QUESTION, db_path=db_path)
+    review.answer_request(asked["request_id"], "no_record", "tch_jean", db_path=db_path)
+    with pytest.raises(ValueError, match="not asked the same question twice"):
+        tools.request_record(learner_id="lrn_a", concept_id=concept, question=QUESTION, db_path=db_path)
+    shown = tools.get_record_requests(learner_id="lrn_a", db_path=db_path)["requests"]
+    assert [(r["status"], bool(r["answered_by_name"])) for r in shown] == [("no_record", True)]
+    assert tools.get_record_requests(learner_id="lrn_a", status="open", db_path=db_path)["requests"] == []
+    with pytest.raises(ValueError, match="Unknown status"):
+        tools.get_record_requests(learner_id="lrn_a", status="bogus", db_path=db_path)

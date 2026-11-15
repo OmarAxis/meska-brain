@@ -76,7 +76,7 @@ uv run meska audit
 
 ## Use the MCP server from any MCP host
 
-Meska Brain's own MCP server exposes ten tools (table below). None of them can approve anything.
+Meska Brain's own MCP server exposes twelve tools (table below). None of them can approve or answer anything.
 
 stdio (the default), as a config snippet for a generic MCP host:
 
@@ -110,28 +110,30 @@ The endpoint is `http://127.0.0.1:8766/mcp`. There is no authentication on it, w
 | `what_worked` | read | Teaching approaches followed by a clear gain for this learner, measured against the learner's own recent average. Describes approaches, never rates teachers. |
 | `get_findings` | read | A learner's findings and what a teacher decided about each (status, deciding teacher's name). The agent uses it for its gate checks, so they are in the audit log. |
 | `get_summaries` | read | The same for summary drafts. |
+| `get_record_requests` | read | Questions asked about holes in a learner's record, and what a teacher answered. |
 | `record_evidence` | write | Stores one evidence row with its source. Unknown concept ids are kept as `needs_review`; a repeated source returns the existing row. |
 | `propose_finding` | write | Stores a finding as `proposed`. Needs real evidence ids that belong to the learner (2 or more for root cause, strength, struggle) and a statement that passes the guard. |
 | `draft_summary` | write | Stores a summary draft. Refused unless every cited finding is approved or edited by a teacher and the text passes the guard. |
+| `request_record` | write | Asks a teacher for a record of a topic the learner has no scored evidence for. Refused when records exist or a teacher has already answered; an open question is returned as is. The question must pass the guard. |
 
 ## What the challenge asked for, and where it is
 
 | Requirement | Where |
 |---|---|
-| Own MCP server with 3 or more tools, at least one that writes | `src/meska_brain/server.py`, `src/meska_brain/tools.py`: 10 tools (7 read, 3 write: `record_evidence`, `propose_finding`, `draft_summary`). The agent does all its learner-data work through them over stdio, including reading finding and summary status at the gates, so those reads are logged too. |
+| Own MCP server with 3 or more tools, at least one that writes | `src/meska_brain/server.py`, `src/meska_brain/tools.py`: 12 tools (8 read, 4 write: `record_evidence`, `propose_finding`, `draft_summary`, `request_record`). The agent does all its learner-data work through them over stdio, including reading finding and summary status at the gates, so those reads are logged too. |
 | An MCP server we did not write | Microsoft's [`markitdown-mcp`](https://github.com/microsoft/markitdown/tree/main/packages/markitdown-mcp), started over stdio in `src/meska_brain/agent/mcp_io.py`. It beats writing it ourselves because converting PDFs, Office files, images and HTML to text is a large, well-maintained problem that is not our contribution. |
 | Open-source orchestration | LangGraph, in `src/meska_brain/agent/workflow.py`. Checkpointed to SQLite (`data/checkpoints.db`) in `src/meska_brain/agent/runner.py`, so a run pauses at a teacher gate and resumes later. MCP sessions use the official `mcp` SDK client directly (`agent/mcp_io.py`). |
 | One full task on an open-weights model | The whole agent task runs on `qwen3.5-9b` served locally by LM Studio (`src/meska_brain/agent/llm.py`). Any OpenAI-compatible endpoint works. A frontier model is optional via `MESKA_FRONTIER_*`. |
 | A logged call for every action | `@audited` in `src/meska_brain/audit.py` writes every tool call (input, output, success, time, actor, run) to `audit_log`. Teacher decisions are logged too: `review.py` writes the decision, the `approvals` row and the audit row in one transaction. |
-| A gate on every irreversible action | Two gates in `workflow.py`: findings, then summaries. The `approvals` table (`schema.sql`, written by `review.py`) records the named teacher. The agent has no tool that can approve: `review.py` is not exposed over MCP. |
+| A gate on every irreversible action | Two gates in `workflow.py`: findings, then summaries. The `approvals` table (`schema.sql`, written by `review.py`) records the named teacher. The agent has no tool that can approve: `review.py` is not exposed over MCP. A third stop waits for a teacher to answer a question about a missing record; answering is in `review.py` too. |
 | New work, OSI licence, runs in one command | Apache License 2.0 in `LICENSE`. `uv run meska demo`. |
 
 ## Rules the code enforces
 
 These are the things that disqualify an entry, and what stops each one in this repository.
 
-- **Not a chatbot wrapper.** There is no chat box and no free-form question answering. The agent is a fixed LangGraph pipeline (`workflow.py`). The model has three narrow jobs: read a document into rows, choose which analysis tools to call, and word a sentence. All reasoning over the curriculum and the records is deterministic code in `graph.py`. The model chooses which analysis to run, not the learner or the evidence bar: the agent forces `learner_id` on every model-chosen call and strips `min_periods`, and the server itself refuses `min_periods` below 3.
-- **Not an MCP server that proxies one endpoint.** `server.py` exposes ten tools over a local graph and database (`tools.py`, `graph.py`). It makes no outbound calls.
+- **Not a chatbot wrapper.** There is no chat box and no free-form question answering. The agent is a LangGraph state machine (`workflow.py`) with one loop: when a missing record stops the trace, it asks a teacher, reads the answer and investigates again before it proposes anything. The model has three narrow jobs: read a document into rows, choose which analysis tools to call, and word a sentence. All reasoning over the curriculum and the records is deterministic code in `graph.py`. The model chooses which analysis to run, not the learner or the evidence bar: the agent forces `learner_id` on every model-chosen call and strips `min_periods`, and the server itself refuses `min_periods` below 3.
+- **Not an MCP server that proxies one endpoint.** `server.py` exposes twelve tools over a local graph and database (`tools.py`, `graph.py`). It makes no outbound calls.
 - **No label or track for a learner, and nothing shared, without the teacher.** `guard.py` rejects labels on a child, comparisons with classmates and track assignments. It runs in `propose_finding`, in `draft_summary` and on a teacher's edit (`tools.py`, `review.py`), and the agent checks its own wording first (`workflow.py`). A finding is `proposed` until a named teacher decides (`review.py`). A summary can only be drafted from approved findings (`tools.draft_summary`) and needs its own approval. Each note is also checked for language (`agent/language.py`) and for numbers: a note may not contain a number that is not in the approved findings. Nothing in the system sends anything anywhere; there is no share or send function. Dispositional skills in a pack (marked `kind: disposition`, such as persistence) can be reported as a strength but never as a struggle.
 - **No claim without a source.** `tools._check_evidence` refuses a finding with no evidence ids, with an id that does not exist, or with an id that belongs to another learner. Evidence ids are copied from tool results in `workflow.py`; the model never writes one. When the records cannot tell where a difficulty began (a hole in the record right under the root), `trace_root` says so, and the agent turns it into an open question for the teacher, not a finding. Rows the model reads from a document are dropped if their quote is not in the document. The review screen shows the records behind each finding.
 - **No real learner data.** Learners have an alias, never a name (`schema.sql`). All data is generated by `synth.py` from a seed; the inbox files are synthetic (`data/inbox/README.md`). This is a convention plus a design, not a technical check: nothing stops someone typing a real name into a note.
@@ -179,7 +181,7 @@ All settings are environment variables. See `.env.example`.
 
 ```
 src/meska_brain/
-  server.py        our MCP server (10 tools, stdio or HTTP)
+  server.py        our MCP server (12 tools, stdio or HTTP)
   tools.py         the service layer behind those tools (audited)
   graph.py         deterministic reasoning: patterns, trace back, what worked, learner graph
   curriculum.py    loads and validates a curriculum pack (a DAG of concepts)
@@ -191,7 +193,7 @@ src/meska_brain/
   evals.py         the evaluation set
   cli.py           the `meska` command
   agent/
-    workflow.py    the LangGraph pipeline and its two teacher gates
+    workflow.py    the LangGraph agent: the ask-for-a-record loop and two approval gates
     runner.py      start, pause and resume runs (SQLite checkpoints)
     mcp_io.py      MCP clients: our server and markitdown-mcp
     language.py    checks that a note is in the language asked for

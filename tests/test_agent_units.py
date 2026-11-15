@@ -168,3 +168,120 @@ def test_load_learner_takes_the_current_grade_from_the_latest_record():
         finally:
             workflow.RESOURCES.pop("run_test")
         assert out["learner"]["grade_now"] == expected
+
+
+# ---------------------------------------------------------------- asking for a missing record
+
+class _Pack:
+    """The two things the loop needs from a curriculum pack."""
+    def __init__(self):
+        self.concepts = {"decimals": SimpleNamespace(grade=5), "division": SimpleNamespace(grade=3),
+                         "place-value": SimpleNamespace(grade=2)}
+
+    def label(self, concept_id):
+        return concept_id.replace("-", " ").title()
+
+
+class _LoopHub:
+    """Stands in for the MCP server: remembers calls and serves record requests."""
+    db_path = None
+
+    def __init__(self, requests=None, refuse=False):
+        self.requests, self.calls, self.refuse = list(requests or []), [], refuse
+
+    async def call(self, tool, **kwargs):
+        self.calls.append((tool, kwargs))
+        if tool == "get_record_requests":
+            wanted = kwargs.get("request_ids")
+            return {"requests": [r for r in self.requests if wanted is None or r["request_id"] in wanted]}
+        if tool == "request_record":
+            if self.refuse:
+                raise workflow.ToolError("The question was rejected: label on a child")
+            return {"request_id": "req_1", "status": "open", "warnings": []}
+        raise AssertionError(tool)
+
+
+def _loop(node, hub, state, monkeypatch):
+    import asyncio
+    monkeypatch.setattr(workflow, "load_pack", lambda _pack_id: _Pack())
+    workflow.RESOURCES["run_loop"] = {"hub": hub, "llm": None, "usage": None}   # no model: wording falls back
+    try:
+        return asyncio.run(node({"run_id": "run_loop", "learner_id": "lrn_x", "learner": {"pack_id": "p"}, **state}))
+    finally:
+        workflow.RESOURCES.pop("run_loop")
+
+
+GAP = {"roots": {"decimals": {"prerequisites_missing_in_record": ["division"]},
+                 "fractions": {"prerequisites_missing_in_record": ["division", "place-value"]},
+                 "angles": {"prerequisites_missing_in_record": []}}}
+
+
+def test_record_gaps_lists_each_missing_topic_once():
+    assert workflow._record_gaps(GAP) == [{"concept_id": "division", "about": "decimals"},
+                                          {"concept_id": "place-value", "about": "fractions"}]
+    assert workflow._record_gaps({"roots": {}}) == [] and workflow._record_gaps({}) == []
+
+
+def test_agent_asks_a_teacher_when_a_record_is_missing(monkeypatch):
+    hub = _LoopHub()
+    out = _loop(workflow.ask_for_records, hub, {"analyses": GAP}, monkeypatch)
+    assert out["open_request"] == {"request_id": "req_1", "concept_id": "division", "about": "decimals"}
+    assert out["request_ids"] == ["req_1"]
+    tool, sent = hub.calls[-1]
+    assert tool == "request_record" and sent["concept_id"] == "division" and sent["about_concept_id"] == "decimals"
+    assert "Division" in sent["question"] and "?" in sent["question"]          # the template, with no model
+    assert not workflow.guard.check_statement(sent["question"])
+    assert workflow._after_ask(out) == "teacher_gate_records"
+
+
+def test_agent_does_not_ask_again_or_without_end(monkeypatch):
+    answered = [{"request_id": "req_0", "concept_id": "division", "status": "no_record"},
+                {"request_id": "req_9", "concept_id": "place-value", "status": "provided"}]
+    hub = _LoopHub(answered)
+    out = _loop(workflow.ask_for_records, hub, {"analyses": GAP}, monkeypatch)
+    assert out["open_request"] is None and "Not asked again" in out["steps"][0]["note"]
+    assert [tool for tool, _ in hub.calls] == ["get_record_requests"]
+    assert workflow._after_ask(out) == "compose_findings"
+
+    hub = _LoopHub()
+    capped = _loop(workflow.ask_for_records, hub, {"analyses": GAP, "request_ids": ["req_a", "req_b"]}, monkeypatch)
+    assert capped["open_request"] is None and "open question" in capped["steps"][0]["note"]
+    assert "request_record" not in [tool for tool, _ in hub.calls]
+
+    nothing = _loop(workflow.ask_for_records, _LoopHub(), {"analyses": {"roots": {}}}, monkeypatch)
+    assert nothing == {"open_request": None}
+
+
+def test_a_refused_question_does_not_stop_the_run(monkeypatch):
+    out = _loop(workflow.ask_for_records, _LoopHub(refuse=True), {"analyses": GAP}, monkeypatch)
+    assert out["open_request"] is None and out["steps"][0]["ok"] is False
+
+
+def test_gate_passes_the_teachers_answer_on(monkeypatch):
+    answered = {"request_id": "req_1", "concept_id": "division", "status": "provided", "answer_text": "Q1 1 out of 2",
+                "answered_by_name": "Jean"}
+    out = _loop(workflow.teacher_gate_records, _LoopHub([answered]),
+                {"open_request": {"request_id": "req_1", "concept_id": "division", "about": "decimals"}}, monkeypatch)
+    assert out["open_request"]["status"] == "provided" and out["open_request"]["about"] == "decimals"
+
+
+def test_a_supplied_record_goes_round_again_and_no_record_does_not(monkeypatch):
+    request = {"request_id": "req_1", "concept_id": "division", "about": "decimals", "answered_by_name": "Jean"}
+    given = _loop(workflow.read_answer, _LoopHub(), {"open_request": {
+        **request, "status": "provided", "answer_text": "Q1 1 out of 2", "answer_year": 2022, "answer_term": 2}}, monkeypatch)
+    assert given["document_text"] == "Q1 1 out of 2" and given["inbox_file"] == "teacher_answer_req_1.txt"
+    assert given["answer_hint"] == {"concept_id": "division", "year": 2022, "term": 2}
+    assert given["open_request"] is None and "Jean supplied" in given["steps"][0]["note"]
+    assert workflow._after_answer(given) == "extract_evidence"
+
+    none = _loop(workflow.read_answer, _LoopHub(), {"open_request": {**request, "status": "no_record"}}, monkeypatch)
+    assert none["document_text"] == "" and none["recorded"] == [] and "will not be asked again" in none["steps"][0]["note"]
+    assert workflow._after_answer(none) == "ask_for_records"
+
+
+def test_the_graph_has_the_loop_back_to_reading():
+    drawn = workflow.build_graph().compile().get_graph()
+    edges = {(e.source, e.target) for e in drawn.edges}
+    assert {("investigate", "ask_for_records"), ("ask_for_records", "teacher_gate_records"),
+            ("ask_for_records", "compose_findings"), ("teacher_gate_records", "read_answer"),
+            ("read_answer", "extract_evidence"), ("read_answer", "ask_for_records")} <= edges

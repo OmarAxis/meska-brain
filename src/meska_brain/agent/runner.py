@@ -1,7 +1,8 @@
 """Start, pause and resume agent runs.
 
 A run is a LangGraph thread checkpointed to SQLite, so it survives the process: the agent
-stops at a teacher gate, the teacher decides hours later in the review page, and `resume`
+stops at a teacher gate (an approval, or a question about a missing record), the teacher
+answers hours later in the review page, and `resume`
 picks the run up exactly where it stopped. A small JSON file per run holds what the UI shows.
 """
 
@@ -58,7 +59,8 @@ async def _drive(run_id: str, graph_input) -> dict:
     usage = Usage()
     checkpoints = settings.db_path.parent / "checkpoints.db"
     try:
-        needs_converter = bool(record["task"].get("inbox_file")) and not record.get("steps")
+        needs_converter = (bool(record["task"].get("inbox_file")) and not record.get("steps")) \
+            or _answered_with_a_file(record.get("pending") or {})
         async with AsyncSqliteSaver.from_conn_string(str(checkpoints)) as saver, \
                 McpHub(run_id, settings.db_path, with_converter=needs_converter) as hub:
             RESOURCES[run_id] = {"hub": hub, "usage": usage,
@@ -76,6 +78,7 @@ async def _drive(run_id: str, graph_input) -> dict:
             record["open_questions"] = result.get("open_questions", [])
             record["finding_ids"] = result.get("finding_ids", [])
             record["summary_ids"] = result.get("summary_ids", [])
+            record["request_ids"] = result.get("request_ids", [])
             if interrupts:
                 record["status"] = "waiting_for_teacher"
                 record["pending"] = interrupts[0].value
@@ -100,9 +103,27 @@ async def _drive(run_id: str, graph_input) -> dict:
     return record
 
 
+# What each gate waits on: the table, and the status that means "a teacher has not acted yet".
+_GATES = {"findings": ("findings", "proposed"), "summaries": ("summaries", "draft"),
+          "records": ("record_requests", "open")}
+
+
+def _answered_with_a_file(pending: dict) -> bool:
+    """True when the run is resuming after a teacher answered a record request with a file,
+    so the document converter is needed again."""
+    ids = pending.get("waiting_for") or []
+    if pending.get("gate") != "records" or not ids:
+        return False
+    with db.connect() as conn:
+        marks = ",".join("?" * len(ids))
+        row = db.one(conn, f"SELECT COUNT(*) AS n FROM record_requests WHERE answer_file IS NOT NULL AND id IN ({marks})",
+                     tuple(ids))
+    return row["n"] > 0
+
+
 def _still_undecided(pending: dict) -> bool:
     """True while a teacher still has to decide something this run is waiting for."""
-    table, open_status = ("findings", "proposed") if pending.get("gate") == "findings" else ("summaries", "draft")
+    table, open_status = _GATES[pending.get("gate")]
     ids = pending.get("waiting_for") or []
     if not ids:
         return False

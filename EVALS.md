@@ -146,6 +146,28 @@ What these runs broke, and what we did:
   slices or cups of water"); the teacher rejected it, and no check catches this. A document with nothing
   to record still starts an investigation of the existing record, which may surprise a teacher.
 
+## The loop that asks for a missing record
+
+Added after the table above was generated. The table has not been rerun, so no generated task covers the
+loop yet. These are single runs by hand on the local model `qwen3.5-9b-uncensored-hauhaucs-aggressive`, on
+a scratch copy of the demo data, for Learner D-09, whose record has no division items.
+
+| Run | What happened |
+|---|---|
+| Teacher supplies a record | The agent stopped and asked for a division record. The teacher typed three marks with a year and term. The agent recorded 3 of 3 rows under division, investigated again, and the proposed root moved from fractions to division. 16 model calls, about 29,000 input tokens, 73 to 76 seconds. Run twice from code and once through the teacher app, with the same result. |
+| Teacher says no record exists | The agent did not ask again, proposed no root cause, and left the gap as an open question. 9 model calls, 34 seconds. |
+
+What is not right yet:
+
+- The model's first wording of the question put the grade in the wrong place ("In Grade 3, the learner has
+  low results in Calculating with decimals"). The facts given to the model were renamed and the next two
+  runs were worded correctly. Three runs is too few to call it fixed.
+- When the gap stays open, the same open question is listed once per struggling topic (five times for this
+  learner), with only the topic name changed.
+- The agent decides to ask from the engine's result, in code. The model words the question. It does not
+  decide whether to ask.
+- A file answer in a format other than text was not tried.
+
 ## What this evaluation does not show
 
 - **No real classroom data and no teacher has used it.** Everything is synthetic.

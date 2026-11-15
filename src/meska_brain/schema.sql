@@ -124,3 +124,23 @@ CREATE TABLE IF NOT EXISTS approvals (
   teacher_name TEXT NOT NULL,
   note         TEXT
 );
+
+-- A question from the agent to a teacher: "the record has a hole here, do you have anything?"
+-- Only a named teacher can answer it, with a record or by saying none exists.
+CREATE TABLE IF NOT EXISTS record_requests (
+  id               TEXT PRIMARY KEY,         -- req_xxxx
+  learner_id       TEXT NOT NULL REFERENCES learners(id),
+  concept_id       TEXT NOT NULL,            -- the topic with no records
+  about_concept_id TEXT,                     -- the struggle whose trace stopped at the hole
+  question         TEXT NOT NULL,            -- plain words, checked by the guard
+  status           TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','provided','no_record')),
+  asked_by         TEXT NOT NULL,            -- agent run id or tool caller
+  asked_at         TEXT NOT NULL,
+  answered_by      TEXT REFERENCES teachers(id),
+  answered_at      TEXT,
+  answer_text      TEXT,                     -- what the teacher typed, in any language
+  answer_file      TEXT,                     -- or the name of a file in the inbox
+  answer_year      INTEGER,
+  answer_term      INTEGER CHECK (answer_term BETWEEN 1 AND 3)
+);
+CREATE INDEX IF NOT EXISTS idx_requests_learner ON record_requests(learner_id, status);

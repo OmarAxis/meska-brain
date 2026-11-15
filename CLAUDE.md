@@ -27,18 +27,18 @@ Who does what:
 
 | Path | What |
 |---|---|
-| `src/meska_brain/server.py`, `tools.py` | Our MCP server: 10 tools, 3 that write |
+| `src/meska_brain/server.py`, `tools.py` | Our MCP server: 12 tools, 4 that write |
 | `src/meska_brain/graph.py` | The deterministic graph engine |
 | `src/meska_brain/guard.py` | Refuses statements that label, rank or track a child |
 | `src/meska_brain/review.py` | Teacher decisions (not reachable by the agent) |
 | `src/meska_brain/audit.py` | Every tool call is logged |
-| `src/meska_brain/agent/workflow.py` | The LangGraph agent, with two teacher gates |
+| `src/meska_brain/agent/workflow.py` | The LangGraph agent: the ask-for-a-record loop and two teacher gates |
 | `src/meska_brain/agent/runner.py` | Starts, pauses and resumes runs |
 | `src/meska_brain/agent/llm.py` | Model access (any OpenAI-compatible endpoint) |
 | `src/meska_brain/web/` | Teacher web app (FastAPI and one HTML file) |
 | `src/meska_brain/synth.py` | Synthetic cohort and sample documents |
 | `src/meska_brain/evals.py` | The evaluation set that writes `EVALS.md` |
-| `tests/` | 171 tests, no model needed |
+| `tests/` | 184 tests, no model needed |
 
 ## Commands
 
@@ -52,6 +52,7 @@ uv run meska story           # a ready state for presenting, no model used
 uv run meska learners        # list learners
 uv run meska run A-17 --file data/inbox/quiz_sheet_A17_2025-T1.md
 uv run meska pending         # what is waiting for a teacher
+uv run meska answer <request_id> --teacher <id> --text "..."   # answer the agent's question, then `meska resume`
 uv run meska eval --skip-model   # engine tasks only
 uv run meska eval --repeats 1    # full evaluation, needs a model
 ```

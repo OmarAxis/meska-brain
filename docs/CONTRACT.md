@@ -233,7 +233,7 @@ one in its own transaction.
 
 ## `server.py`
 
-`FastMCP("meska-brain")` from `mcp.server.fastmcp`, registering the ten functions in `tools.py` with
+`FastMCP("meska-brain")` from `mcp.server.fastmcp`, registering the twelve functions in `tools.py` with
 clear descriptions and `ToolAnnotations` (read-only for the read tools). `main()` runs stdio by
 default; `--http` runs streamable HTTP on `Settings.mcp_port`. Installed mcp version is 1.30.
 

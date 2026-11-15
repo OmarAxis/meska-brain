@@ -195,3 +195,28 @@ def test_patterns_page_cannot_lower_the_evidence_bar(client):
 
 def test_unknown_finding_status_is_400(client):
     assert client.get("/api/findings", params={"status": "bogus"}).status_code == 400
+
+
+def test_a_teacher_answers_a_record_request(client):
+    from meska_brain.curriculum import load_pack
+    with db.connect() as conn:
+        learner = db.one(conn, "SELECT id, pack_id FROM learners ORDER BY id LIMIT 1")
+        seen = {r["concept_id"] for r in db.rows(conn, "SELECT DISTINCT concept_id FROM evidence WHERE learner_id = ? "
+                                                       "AND score IS NOT NULL", (learner["id"],))}
+    concept = next(c for c in load_pack(learner["pack_id"]).concepts if c not in seen)
+    request_id = tools.request_record(learner_id=learner["id"], concept_id=concept,
+                                      question="There are no records for this topic. Do you have a quiz?")["request_id"]
+    waiting = client.get("/api/review/pending").json()["requests"]
+    assert [(r["id"], bool(r["concept_label"]), bool(r["learner_alias"])) for r in waiting] == [(request_id, True, True)]
+    url = f"/api/requests/{request_id}/answer"
+    teacher = _teacher(client)["id"]
+    assert client.post(url, json={"answer": "provided", "teacher_id": teacher}).status_code == 400
+    assert client.post(url, json={"answer": "provided", "teacher_id": "nope", "text": "Q1 1 out of 2"}).status_code == 400
+    bad_file = client.post(url, json={"answer": "provided", "teacher_id": teacher, "inbox_file": "../../pyproject.toml"})
+    assert bad_file.status_code == 400 and "inbox" in bad_file.json()["error"]
+    done = client.post(url, json={"answer": "provided", "teacher_id": teacher, "text": "Q1 1 out of 2", "year": 2022, "term": 2})
+    assert done.status_code == 200 and done.json()["request"]["status"] == "provided"
+    assert client.post(url, json={"answer": "no_record", "teacher_id": teacher}).status_code == 400
+    assert client.get("/api/review/pending").json()["requests"] == []
+    listed = client.get("/api/requests", params={"learner_id": learner["id"]}).json()["requests"]
+    assert listed[0]["answered_by_name"]

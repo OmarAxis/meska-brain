@@ -53,6 +53,15 @@ class SummaryDecision(BaseModel):
     note: str | None = None
 
 
+class RequestAnswer(BaseModel):
+    answer: str
+    teacher_id: str
+    text: str | None = None
+    inbox_file: str | None = None
+    year: int | None = None
+    term: int | None = None
+
+
 class RunRequest(BaseModel):
     learner_id: str
     inbox_file: str | None = None
@@ -194,6 +203,10 @@ def review_pending() -> dict:
         packs = {r["id"]: r["pack_id"] for r in db.rows(conn, "SELECT id, pack_id FROM learners")}
     for finding in data["findings"]:
         finding["next_step"] = people.next_step(finding, load_pack(packs[finding["learner_id"]]))
+    for request in data["requests"]:
+        pack = load_pack(packs[request["learner_id"]])
+        request["concept_label"] = pack.label(request["concept_id"])
+        request["grade"] = pack.concepts[request["concept_id"]].grade if request["concept_id"] in pack.concepts else None
     return data
 
 
@@ -256,6 +269,32 @@ def decide_finding(finding_id: str, body: FindingDecision) -> dict:
 def decide_summary(summary_id: str, body: SummaryDecision) -> dict:
     result = review.decide_summary(summary_id, body.decision, body.teacher_id, body.note)
     return {"summary": result, "resumed_runs": _resume_waiting(summary_id)}
+
+
+@app.get("/api/requests")
+def record_requests(learner_id: str | None = None) -> dict:
+    """Every question the agent asked about a missing record, newest first, with the answer."""
+    sql = ("SELECT r.*, t.name AS answered_by_name FROM record_requests r "
+           "LEFT JOIN teachers t ON t.id = r.answered_by")
+    params: list[Any] = []
+    if learner_id:
+        sql += " WHERE r.learner_id = ?"
+        params.append(learner_id)
+    with db.connect() as conn:
+        return {"requests": db.rows(conn, sql + " ORDER BY r.asked_at DESC, r.id", tuple(params))}
+
+
+@app.post("/api/requests/{request_id}/answer")
+def answer_request(request_id: str, body: RequestAnswer) -> dict:
+    file_name = None
+    if body.inbox_file:
+        # Only a file that is in the inbox, by name: a path from the page is never followed.
+        file_name = Path(body.inbox_file).name
+        if not (_inbox_dir() / file_name).is_file():
+            raise ValueError(f"No file called '{file_name}' in the inbox.")
+    result = review.answer_request(request_id, body.answer, body.teacher_id, body.text, file_name,
+                                   body.year, body.term)
+    return {"request": result, "resumed_runs": _resume_waiting(request_id)}
 
 
 # ------------------------------------------------------------------ audit
