@@ -1,6 +1,6 @@
 # Architecture
 
-Meska Brain is two things on one SQLite file: an MCP server that holds the learner map and does the reasoning, and a LangGraph agent that uses that server to read a new document, investigate a learner and propose findings. A named teacher decides at two gates.
+Meska Brain is two things on one SQLite file: an MCP server that holds the learner map and does the reasoning, and a LangGraph agent that uses that server to read a new document, investigate a learner and propose findings. A named teacher approves at two gates, and answers the agent when it asks for a missing record.
 
 ```mermaid
 flowchart TD
@@ -8,23 +8,29 @@ flowchart TD
   B --> C[extract_evidence]
   C --> D[record_evidence]
   D --> E[investigate]
-  E --> F[compose_findings]
+  E --> Q[ask_for_records]
+  Q -- a record is missing --> QG{{teacher answers}}
+  QG --> RA[read_answer]
+  RA -- record supplied: go round again --> C
+  RA -- no record exists --> Q
+  Q -- nothing to ask --> F[compose_findings]
   F --> G[propose_findings]
   G --> H{{teacher gate 1: findings}}
   H --> I[draft_summaries]
   I --> J{{teacher gate 2: summaries}}
   J --> K[done]
   B -. stdio .-> MD[markitdown-mcp, borrowed]
-  A & D & E & F & G & H & I & J -. stdio .-> M[meska-brain MCP server, ours, 10 tools]
+  A & D & E & Q & QG & F & G & H & I & J -. stdio .-> M[meska-brain MCP server, ours, 12 tools]
   M --> DB[(SQLite: evidence, findings, audit_log, approvals)]
   H -. decision .-> R[review.py, teacher only]
   J -. decision .-> R
+  QG -. answer .-> R
   R --> DB
 ```
 
 ## Agent shape
 
-The nodes run in the order shown, in `agent/workflow.py`. Each run is a LangGraph thread checkpointed to `data/checkpoints.db`. At a gate the node reads finding or summary status through the `get_findings` and `get_summaries` tools, so the check is in the audit log, and calls `interrupt` while anything is undecided. The run stops and `agent/runner.py` saves a record of the steps. The gate only passes when the database shows a teacher has decided every item, so resuming early just stops again. `meska resume` (or the web app, after a decision) continues the thread, even from a new process. The graph itself makes no database reads. The runner reads the database for one scheduling check (is anything at this gate still undecided) and finds open runs from its run record files; that is run scheduling, not an agent action.
+The nodes are in `agent/workflow.py`. There is one loop. When `trace_root` reports that a topic with no records stops it from telling where a difficulty began, `ask_for_records` words a question, stores it with the `request_record` tool and the run stops. A teacher answers in the review page with a record (typed, or a file from the inbox) or with "no record exists". With a record, the agent reads it, records the rows and investigates again before it proposes anything. A teacher is asked about a topic once, and a run asks at most two questions. Each run is a LangGraph thread checkpointed to `data/checkpoints.db`. At a gate the node reads finding or summary status through the `get_findings` and `get_summaries` tools, so the check is in the audit log, and calls `interrupt` while anything is undecided. The run stops and `agent/runner.py` saves a record of the steps. The gate only passes when the database shows a teacher has decided every item, so resuming early just stops again. `meska resume` (or the web app, after a decision) continues the thread, even from a new process. The graph itself makes no database reads. The runner reads the database for one scheduling check (is anything at this gate still undecided) and finds open runs from its run record files; that is run scheduling, not an agent action.
 
 Where it recovers or checks itself:
 
@@ -44,7 +50,7 @@ Where it recovers or checks itself:
 
 ## MCP servers: built and borrowed
 
-Built: `server.py`, ten tools (seven read, three write) over `tools.py`. Every agent action on learner data goes through it, so each is written to `audit_log`. The two added read tools, `get_findings` and `get_summaries`, exist so the agent can see a teacher's decision without reading the database. Borrowed: Microsoft's `markitdown-mcp`, which turns PDFs, Office files, images and HTML into text. Document conversion is a large, solved problem, and a worse copy of it is not our contribution. Both servers are reached with the official `mcp` SDK client over stdio.
+Built: `server.py`, twelve tools (eight read, four write) over `tools.py`. Every agent action on learner data goes through it, so each is written to `audit_log`. The two added read tools, `get_findings` and `get_summaries`, exist so the agent can see a teacher's decision without reading the database; `request_record` and `get_record_requests` are the two ends of the loop above. Borrowed: Microsoft's `markitdown-mcp`, which turns PDFs, Office files, images and HTML into text. Document conversion is a large, solved problem, and a worse copy of it is not our contribution. Both servers are reached with the official `mcp` SDK client over stdio.
 
 ## Division of labour
 

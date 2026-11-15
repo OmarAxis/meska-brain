@@ -35,6 +35,17 @@ Rules:
 - When you have what you need, reply with the single word DONE.
 """
 
+REQUEST_SYSTEM = """You write one short question to a teacher about a hole in one learner's records.
+You are given FACTS as JSON. Use only those facts.
+
+Rules:
+- At most two sentences, plain words, no jargon.
+- Say which topic has low results, which earlier topic has no records, and ask whether the teacher has a
+  quiz, a test or a note about that earlier topic for this learner.
+- Describe the records, never the child. No labels, no guesses about the cause, no comparison with classmates.
+- Reply with the question only.
+"""
+
 WORD_SYSTEM = """You write one short statement for a teacher about a pattern in one learner's records.
 You are given FACTS as JSON. Use only those facts.
 

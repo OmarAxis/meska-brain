@@ -10,9 +10,10 @@ from mcp.client.stdio import StdioServerParameters, stdio_client
 from meska_brain import db, server
 
 TOOL_NAMES = {"list_learners", "get_learner_timeline", "record_evidence", "find_patterns", "trace_root",
-              "what_worked", "propose_finding", "draft_summary", "get_findings", "get_summaries"}
+              "what_worked", "propose_finding", "draft_summary", "get_findings", "get_summaries",
+              "request_record", "get_record_requests"}
 READ_ONLY = {"list_learners", "get_learner_timeline", "find_patterns", "trace_root", "what_worked",
-             "get_findings", "get_summaries"}
+             "get_findings", "get_summaries", "get_record_requests"}
 ROOT = Path(__file__).resolve().parents[1]
 
 

@@ -1,4 +1,4 @@
-"""The service layer. These ten functions are the MCP tools. Each is audited, takes keyword
+"""The service layer. These twelve functions are the MCP tools. Each is audited, takes keyword
 arguments only (so the audit log records every input), and returns a JSON-able dict.
 
 Errors raise ValueError with a message a caller can act on. Nothing here approves anything:
@@ -16,6 +16,7 @@ NEEDS_TWO_ROWS = ("root_cause", "strength", "struggle")
 AUDIENCES = ("teacher_handover", "guardian")
 FINDING_STATUSES = ("proposed", "approved", "edited", "rejected")
 SUMMARY_STATUSES = ("draft", "approved", "rejected")
+REQUEST_STATUSES = ("open", "provided", "no_record")
 MIN_PATTERN_PERIODS = 3
 MAX_TIMELINE_ROWS = 1000
 
@@ -162,6 +163,32 @@ def get_summaries(*, learner_id: str, summary_ids: list[str] | None = None, stat
                           for s in found]}
 
 
+@audited("get_record_requests")
+def get_record_requests(*, learner_id: str, request_ids: list[str] | None = None, status: str | None = None,
+                        db_path=None) -> dict:
+    """Questions asked about holes in a learner's record, and what a teacher answered."""
+    if status is not None and status not in REQUEST_STATUSES:
+        raise ValueError(f"Unknown status '{status}'. Use one of: {', '.join(REQUEST_STATUSES)}.")
+    sql = ("SELECT r.*, t.name AS answered_by_name FROM record_requests r "
+           "LEFT JOIN teachers t ON t.id = r.answered_by WHERE r.learner_id = ?")
+    params: list = [learner_id]
+    if request_ids is not None:
+        sql += f" AND r.id IN ({','.join('?' for _ in request_ids) or 'NULL'})"
+        params += request_ids
+    if status is not None:
+        sql += " AND r.status = ?"
+        params.append(status)
+    with db.connect(db_path) as conn:
+        _learner(conn, learner_id)
+        found = db.rows(conn, sql + " ORDER BY r.rowid", tuple(params))
+    return {"requests": [{"request_id": r["id"], "concept_id": r["concept_id"],
+                          "about_concept_id": r["about_concept_id"], "question": r["question"],
+                          "status": r["status"], "asked_by": r["asked_by"], "asked_at": r["asked_at"],
+                          "answered_by_name": r["answered_by_name"], "answered_at": r["answered_at"],
+                          "answer_text": r["answer_text"], "answer_file": r["answer_file"],
+                          "answer_year": r["answer_year"], "answer_term": r["answer_term"]} for r in found]}
+
+
 # ---------------------------------------------------------------- write tools
 
 def _validate_evidence(kind: str, term: int, score: float | None) -> None:
@@ -279,3 +306,36 @@ def draft_summary(*, learner_id: str, finding_ids: list[str], audience: str, lan
             "created_by, created_at) VALUES (?,?,?,?,?,?,'draft',?,?)",
             (summary_id, learner_id, audience, language, text, db.jdump(finding_ids), _caller(), db.now_iso()))
     return {"summary_id": summary_id, "status": "draft"}
+
+
+@audited("request_record")
+def request_record(*, learner_id: str, concept_id: str, question: str, about_concept_id: str | None = None,
+                   db_path=None) -> dict:
+    """Ask a teacher for a record of a topic the learner has no scored evidence for. It only asks:
+    the answer comes from a named teacher (review.py). A teacher is asked about a topic once."""
+    _check_text(question, "question")
+    with db.connect(db_path) as conn:
+        learner = _learner(conn, learner_id)
+        pack = load_pack(learner["pack_id"])
+        for concept in (concept_id, about_concept_id):
+            if concept is not None and concept not in pack.concepts:
+                raise ValueError(f"Unknown concept '{concept}' in pack '{pack.id}'.")
+        have = db.one(conn, "SELECT COUNT(*) AS n FROM evidence WHERE learner_id = ? AND concept_id = ? "
+                            "AND score IS NOT NULL AND status = 'active'", (learner_id, concept_id))["n"]
+        if have:
+            raise ValueError(f"There are already {have} scored records for '{concept_id}'. Read them with "
+                             "get_learner_timeline instead of asking a teacher.")
+        asked = db.one(conn, "SELECT id, status FROM record_requests WHERE learner_id = ? AND concept_id = ? "
+                             "ORDER BY rowid DESC", (learner_id, concept_id))
+        if asked and asked["status"] == "open":
+            return {"request_id": asked["id"], "status": "open",
+                    "warnings": ["Already asked and still waiting for a teacher; returned the existing request."]}
+        if asked:
+            raise ValueError(f"A teacher already answered a request about '{concept_id}' ({asked['status']}). "
+                             "A teacher is not asked the same question twice.")
+        request_id = db.new_id("req")
+        conn.execute(
+            "INSERT INTO record_requests (id, learner_id, concept_id, about_concept_id, question, status, "
+            "asked_by, asked_at) VALUES (?,?,?,?,?,'open',?,?)",
+            (request_id, learner_id, concept_id, about_concept_id, question, _caller(), db.now_iso()))
+    return {"request_id": request_id, "status": "open", "warnings": []}

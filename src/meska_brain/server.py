@@ -1,5 +1,5 @@
-"""MCP server "meska-brain". Exposes the ten functions in tools.py and nothing else: approval
-functions (review.py) are deliberately not reachable over MCP.
+"""MCP server "meska-brain". Exposes the twelve functions in tools.py and nothing else: approving
+and answering (review.py) are deliberately not reachable over MCP.
 
 Calls are attributed in the audit log to MESKA_ACTOR (default "mcp-client") and MESKA_RUN_ID, which
 the agent sets when it spawns this server over stdio.
@@ -21,7 +21,8 @@ from .config import get_settings
 
 mcp = FastMCP("meska-brain", instructions=(
     "A cited learning map per learner. Read tools describe patterns in the evidence; write tools only "
-    "store evidence, proposed findings and summary drafts. A named teacher approves everything elsewhere."))
+    "store evidence, proposed findings, summary drafts and questions about missing records. A named "
+    "teacher approves and answers everything elsewhere."))
 
 READ_ONLY = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False)
 WRITE = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False)
@@ -136,6 +137,26 @@ def propose_finding(learner_id: str, kind: str, statement: str, evidence_ids: li
 def draft_summary(learner_id: str, finding_ids: list[str], audience: str, language: str, text: str) -> dict:
     return _call(tools.draft_summary, learner_id=learner_id, finding_ids=finding_ids, audience=audience,
                  language=language, text=text)
+
+
+@mcp.tool(annotations=READ_ONLY, description=(
+    "List the questions asked about holes in a learner's record and what a teacher answered: status (open, "
+    "provided, no_record), the answering teacher's name and time, and the text or file they supplied. Call "
+    "this before request_record so a teacher is never asked the same thing twice; filter by `request_ids` or "
+    "`status`."))
+def get_record_requests(learner_id: str, request_ids: list[str] | None = None, status: str | None = None) -> dict:
+    return _call(tools.get_record_requests, learner_id=learner_id, request_ids=request_ids, status=status)
+
+
+@mcp.tool(annotations=WRITE_IDEMPOTENT, description=(
+    "Ask a teacher for a record of one topic (`concept_id`) the learner has no scored evidence for, when "
+    "trace_root reports that the missing topic stops it from telling where a difficulty began. Give a short "
+    "plain `question` and the struggling topic in `about_concept_id`. Refused when records already exist or a "
+    "teacher has already answered; an open request is returned as is. Returns request_id with status 'open'; "
+    "only a named teacher can answer it."))
+def request_record(learner_id: str, concept_id: str, question: str, about_concept_id: str | None = None) -> dict:
+    return _call(tools.request_record, learner_id=learner_id, concept_id=concept_id, question=question,
+                 about_concept_id=about_concept_id)
 
 
 def main(argv: list[str] | None = None) -> None:

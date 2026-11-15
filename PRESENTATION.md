@@ -63,6 +63,10 @@ this difficulty start, what has stayed strong, what kind of teaching was followe
 4. Approve as a named teacher. "The agent cannot do this step. It has no tool for it."
 5. Ask it to label a child. The server refuses, and the refusal is in the log.
 
+If there is time, show the loop instead of step 5. Run the agent on Learner D-09 with no document. It stops
+and asks for a division record, because the trace cannot go further without one. Type three marks as the
+teacher. It reads them, looks again, and the root moves from fractions back to division.
+
 **2:20 Why it is safe to trust (20 seconds).**
 "The model does not reach the conclusions. Plain code does, over a graph. The model reads documents and
 writes sentences. So a parent can ask why, and there is an answer."
@@ -97,11 +101,11 @@ teachers who will tell us where it is wrong."
 
 ### The engineering
 
-- Our own MCP server: ten tools, three that write, every call logged with inputs, outputs and time.
+- Our own MCP server: twelve tools, four that write, every call logged with inputs, outputs and time.
 - One borrowed server, Microsoft's `markitdown-mcp`, for reading documents, so we did not write our own
   converter.
 - LangGraph for the agent, with two points where it stops and waits for a named teacher.
-- 171 tests that need no model. An evaluation of 33 tasks on an open model, plus 14 scenarios run by hand.
+- 185 tests that need no model. An evaluation of 28 tasks on an open model, plus 14 scenarios run by hand.
 - Show a failure on purpose. The guard catches only 2 of 6 labelling phrasings it was not written for. One
   drafted note added advice that was not in the approved findings. Both are written down in `EVALS.md`.
 
@@ -116,7 +120,7 @@ teachers who will tell us where it is wrong."
 | What does a run cost? | Nothing per run. About a minute on a laptop with a 9B model. |
 | Does it work in my language? | It reads notes in several. Nobody who speaks them natively has checked the notes it drafts. |
 | What breaks? | Say the two failures above before they find them. |
-| How is the agent more than a pipeline? | Be honest: it chooses which analyses to run and recovers from bad documents, but the order of steps is mostly fixed. Say what you would build next. |
+| How is the agent more than a pipeline? | It loops. When a record is missing it stops, asks a teacher, reads the answer and investigates again before it proposes anything. It also chooses which analyses to run and recovers from bad documents. Be honest that outside that loop the order of steps is fixed. |
 
 ## For you, before you walk on
 
@@ -124,7 +128,7 @@ teachers who will tell us where it is wrong."
 - Run `uv run meska story` before you present, so the screen is in a ready state. Have the model loaded.
 - Record the demo once as a backup in case the laptop or projector fails.
 - Zoom the browser to 125 percent. The back of a ballroom cannot read small text.
-- Know three numbers by heart: ten tools, two teacher gates, zero cost per run.
+- Know three numbers by heart: twelve tools, two approval gates, zero cost per run.
 - Go to the talks in the table above and speak to those speakers afterwards. They are the people most
   likely to care, and one of them may know a school.
 - Never claim a pilot, a partner or a result we do not have. The rules disqualify fake results, and this

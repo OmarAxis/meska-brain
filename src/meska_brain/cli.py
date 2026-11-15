@@ -147,6 +147,18 @@ def resume(run_id: str) -> None:
 
 
 @app.command()
+def answer(request_id: str, teacher: str = typer.Option(..., help="Teacher id. See `meska teachers`."),
+           text: str | None = typer.Option(None, help="The record in the teacher's own words."),
+           file: str | None = typer.Option(None, help="Name of a file in the inbox."),
+           year: int | None = typer.Option(None), term: int | None = typer.Option(None),
+           none: bool = typer.Option(False, "--none", help="Answer that no record exists.")) -> None:
+    """Answer the agent's question about a missing record, as a named teacher. Then `meska resume`."""
+    from . import review
+    result = review.answer_request(request_id, "no_record" if none else "provided", teacher, text, file, year, term)
+    console.print(f"Request {result['id']} is now '{result['status']}'.", highlight=False)
+
+
+@app.command()
 def pending() -> None:
     """Show what is waiting for a teacher."""
     from . import review

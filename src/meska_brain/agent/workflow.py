@@ -1,15 +1,23 @@
 """The agent as a LangGraph state machine.
 
-    load_learner -> read_document -> extract_evidence -> record_evidence
-        -> investigate -> compose_findings -> propose_findings
+    load_learner -> read_document -> extract_evidence -> record_evidence -> investigate
+        -> ask_for_records -> compose_findings -> propose_findings
         -> [teacher gate 1] -> draft_summaries -> [teacher gate 2] -> done
+
+The loop: when the engine reports that a missing record stops it from telling where a difficulty
+began, ask_for_records asks a teacher for that record and the run waits. If the teacher supplies
+one, the agent reads it and goes round again (extract, record, investigate) before it says
+anything. If the teacher says none exists, the question is not asked again.
+
+        ask_for_records -> [teacher answers] -> read_answer -> extract_evidence -> ... -> investigate
 
 Division of labour, on purpose:
 - The MODEL reads documents, decides which analysis tools to call, and words text.
 - The MCP TOOLS hold all learner data and do all reasoning over the graph.
 - EVIDENCE IDS never come from the model. They are copied from tool results, so a claim
   cannot cite something that is not in the records.
-- A TEACHER approves findings and summaries. The agent has no tool that can approve.
+- A TEACHER approves findings and summaries, and answers questions about missing records.
+  The agent has no tool that can approve or answer.
 """
 
 from __future__ import annotations
@@ -37,6 +45,8 @@ ANALYSIS_TOOLS = ["find_patterns", "trace_root", "what_worked", "get_learner_tim
 MAX_TOOL_CALLS = 6
 MIN_ROOT_CONFIDENCE = 0.4
 MAX_PATTERN_FINDINGS = 3
+MAX_RECORD_REQUESTS = 2   # questions to a teacher in one run; after that the gap stays an open question
+SCORED_KINDS = ("quiz_item", "assignment", "project")
 TEXT_SUFFIXES = {".txt", ".md", ".csv"}
 
 # Live objects for a run (MCP sessions, model, usage). Kept out of the graph state because
@@ -58,6 +68,9 @@ class RunState(TypedDict, total=False):
     finding_ids: list[str]
     approved_finding_ids: list[str]
     summary_ids: list[str]
+    request_ids: list[str]        # every question about a missing record asked in this run
+    open_request: dict | None     # the question the run is waiting on, then the teacher's answer to it
+    answer_hint: dict | None      # what the teacher was asked about, and the year and term they gave
     steps: Annotated[list[dict], operator.add]
 
 
@@ -116,17 +129,20 @@ async def read_document(state: RunState) -> dict:
     if not path:
         return _step("read_document", "No new document. Reviewing existing records only.")
     hub, _, _ = _res(state)
-    file = Path(path)
+    text, note, ok = await _read_file(hub, Path(path))
+    return {"document_text": text, **_step("read_document", note, ok=ok)}
+
+
+async def _read_file(hub: McpHub, file: Path) -> tuple[str, str, bool]:
+    """The text of a file, a note on how it was read, and whether it could be read at all."""
     try:
         text = await hub.convert_document(file)
-        return {"document_text": text, **_step("read_document", f"Converted {file.name} with markitdown ({len(text)} chars).")}
+        return text, f"Converted {file.name} with markitdown ({len(text)} chars).", True
     except Exception as exc:  # noqa: BLE001 - any failure here has the same recovery
-        if file.suffix.lower() in TEXT_SUFFIXES:
+        if file.suffix.lower() in TEXT_SUFFIXES and file.is_file():
             text = file.read_text(encoding="utf-8", errors="replace")
-            return {"document_text": text,
-                    **_step("read_document", f"markitdown failed ({exc}); recovered by reading {file.name} as text.")}
-        return {"document_text": "",
-                **_step("read_document", f"Could not read {file.name}: {exc}. Nothing recorded from it.", ok=False)}
+            return text, f"markitdown failed ({exc}); recovered by reading {file.name} as text.", True
+        return "", f"Could not read {file.name}: {exc}. Nothing recorded from it.", False
 
 
 def _concept_menu(pack, grade_now: int | None) -> str:
@@ -207,10 +223,16 @@ async def extract_evidence(state: RunState) -> dict:
                 **_step("extract_evidence", f"Document names {', '.join(sorted(named))}, not {learner.get('alias')}. "
                         "Nothing recorded: a record must not land on the wrong learner.", ok=False, refused="wrong_learner")}
     pack = load_pack(learner.get("pack_id"))
+    hint = state.get("answer_hint") or {}
+    asked_about = hint.get("concept_id") if hint.get("concept_id") in pack.concepts else None
+    context = ""
+    if asked_about:
+        context = (f"\n\nA teacher supplied this document in answer to a question about the topic "
+                   f"{asked_about}: {pack.label(asked_about)}.")
     messages = [
         SystemMessage(prompts.EXTRACT_SYSTEM),
         HumanMessage(f"TARGET LEARNER: {learner.get('alias')}\n\nCONCEPTS:\n{_concept_menu(pack, learner.get('grade_now'))}"
-                     f"\n\nDOCUMENT ({Path(state['inbox_file']).name}):\n{text[:8000]}"),
+                     f"{context}\n\nDOCUMENT ({Path(state['inbox_file']).name}):\n{text[:8000]}"),
     ]
     structured = llm.with_structured_output(Extraction, method="json_schema", include_raw=True)
     table_rows = _table_row_count(text)
@@ -239,6 +261,10 @@ async def extract_evidence(state: RunState) -> dict:
     if extraction is None:
         return {"extraction": {"rows": []},
                 **_step("extract_evidence", f"The model could not produce valid rows after retries ({error}). Left for a teacher.", ok=False)}
+    if hint.get("year") and hint.get("term"):
+        # The teacher stated the year and term when answering. Their word beats the model's reading.
+        extraction.year, extraction.term = int(hint["year"]), int(hint["term"])
+        notes.append("year and term as given by the teacher")
     if extraction.year is None or extraction.term is None:
         # Recovery: ask one narrow question about the date instead of giving up on the document.
         year, term = await _ask_period(llm, usage, text)
@@ -257,6 +283,10 @@ async def extract_evidence(state: RunState) -> dict:
         if row.concept_id and row.concept_id not in pack.concepts:
             notes.append(f"dropped unknown concept id '{row.concept_id}'")
             row.concept_id = None
+        if asked_about and row.concept_id is None and row.kind in SCORED_KINDS:
+            # The teacher was asked about one topic and answered with marks: file them under it.
+            row.concept_id = asked_about
+            notes.append("untagged marks filed under the topic the teacher was asked about")
         about_others = set(re.findall(r"Learner [A-Z]-\d+", row.quote)) - {learner.get("alias")}
         if about_others:
             notes.append("dropped a row about another learner")
@@ -279,7 +309,7 @@ async def extract_evidence(state: RunState) -> dict:
         note += " Checks: " + "; ".join(sorted(set(notes))) + "."
     data = extraction.model_dump()
     for row, parsed in zip(data["rows"], extraction.rows, strict=True):
-        row["score"] = parsed.score if parsed.kind in ("quiz_item", "assignment", "project") else None
+        row["score"] = parsed.score if parsed.kind in SCORED_KINDS else None
     return {"extraction": data, **_step("extract_evidence", note)}
 
 
@@ -387,6 +417,127 @@ async def investigate(state: RunState) -> dict:
     return {"analyses": analyses, **_step("investigate", note, model_calls=model_calls, filled=filled)}
 
 
+def _record_gaps(analyses: dict) -> list[dict]:
+    """Holes in the record that stop a trace from telling where a difficulty began: one entry per
+    missing topic, with the struggling topic whose trace ran into it. Deterministic: the engine
+    reports the holes, the agent does not guess them."""
+    gaps: dict[str, dict] = {}
+    for concept, traced in (analyses.get("roots") or {}).items():
+        for missing in traced.get("prerequisites_missing_in_record") or []:
+            gaps.setdefault(missing, {"concept_id": missing, "about": concept})
+    return list(gaps.values())
+
+
+def _template_question(about: str, missing: str, grade: int) -> str:
+    """Fallback wording when the model's question does not pass the guard."""
+    return (f"Results in {about} are low, and there are no records for {missing} (grade {grade}), which it "
+            f"builds on. Do you have a quiz, a test or a note about {missing} for this learner? "
+            "If nothing exists, please say so.")
+
+
+async def ask_for_records(state: RunState) -> dict:
+    """If a missing record stops the engine from telling where a difficulty began, ask a teacher
+    for it instead of guessing or giving up. One question at a time, never the same one twice."""
+    hub, llm, usage = _res(state)
+    gaps = _record_gaps(state.get("analyses") or {})
+    if not gaps:
+        return {"open_request": None}
+    pack = load_pack(state["learner"].get("pack_id"))
+    labels = ", ".join(pack.label(g["concept_id"]) for g in gaps)
+    existing = (await hub.call("get_record_requests", learner_id=state["learner_id"]))["requests"]
+    answered = {r["concept_id"] for r in existing if r["status"] != "open"}
+    fresh = [g for g in gaps if g["concept_id"] not in answered]
+    asked = state.get("request_ids") or []
+    if not fresh:
+        return {"open_request": None, **_step("ask_for_records", f"There are no records for {labels}, and a teacher "
+                                              "has already answered about that. Not asked again.")}
+    if len(asked) >= MAX_RECORD_REQUESTS:
+        return {"open_request": None, **_step("ask_for_records", f"There are still no records for {labels}, but "
+                                              f"{len(asked)} questions were already asked in this run. Left as an open question.")}
+    gap = fresh[0]
+    about, missing = pack.label(gap["about"]), pack.label(gap["concept_id"])
+    grade = pack.concepts[gap["concept_id"]].grade
+    question, problems = "", ["not written"]
+    facts = {"topic_with_low_results": about, "earlier_topic_with_no_records": missing,
+             "grade_in_which_the_earlier_topic_is_taught": grade}
+    messages = [SystemMessage(prompts.REQUEST_SYSTEM), HumanMessage("FACTS:\n" + json.dumps(facts, ensure_ascii=False))]
+    for _ in (1, 2):
+        try:
+            reply = await timed_invoke(llm, messages, usage, "ask_for_records")
+        except Exception:  # noqa: BLE001 - the template below is always available
+            break
+        question = (reply.content or "").strip().strip('"')
+        problems = guard.check_statement(question) if question else ["empty"]
+        if not problems and "?" not in question:
+            problems = ["it is not a question"]
+        if not problems:
+            break
+        messages += [reply, HumanMessage("Rewrite it. Problems: " + "; ".join(problems))]
+    used_template = bool(problems)
+    if used_template:
+        question = _template_question(about, missing, grade)
+    try:
+        result = await hub.call("request_record", learner_id=state["learner_id"], concept_id=gap["concept_id"],
+                                about_concept_id=gap["about"], question=question)
+    except ToolError as exc:
+        return {"open_request": None,
+                **_step("ask_for_records", f"Could not ask about {missing}: {str(exc)[:160]}", ok=False)}
+    note = f"The records cannot tell where the difficulty with {about} began: nothing is recorded for {missing}. Asked a teacher for it."
+    if used_template:
+        note += " The model's wording was not usable, so the plain template was used."
+    return {"open_request": {"request_id": result["request_id"], **gap},
+            "request_ids": list(dict.fromkeys([*asked, result["request_id"]])),
+            **_step("ask_for_records", note, request_id=result["request_id"])}
+
+
+async def teacher_gate_records(state: RunState) -> dict:
+    """The run stops here until a named teacher answers the question. The agent can only look
+    (get_record_requests). Answering is not a tool it has."""
+    hub, _, _ = _res(state)
+    request = state["open_request"]
+    while True:   # same loop as the approval gates: an early resume pauses again
+        found = (await hub.call("get_record_requests", learner_id=state["learner_id"],
+                                request_ids=[request["request_id"]]))["requests"]
+        answer = found[0] if found else None
+        if answer is None or answer["status"] != "open":
+            break
+        interrupt({"gate": "records", "waiting_for": [request["request_id"]]})
+    return {"open_request": {**request, **(answer or {"status": "no_record"})}}
+
+
+async def read_answer(state: RunState) -> dict:
+    """Turn the teacher's answer into a document for the next round, or note that none exists."""
+    hub, _, _ = _res(state)
+    answer = state["open_request"]
+    pack = load_pack(state["learner"].get("pack_id"))
+    label = pack.label(answer["concept_id"])
+    who = answer.get("answered_by_name") or "A teacher"
+    cleared = {"open_request": None, "document_text": "", "inbox_file": None, "answer_hint": None, "recorded": []}
+    if answer["status"] != "provided":
+        return {**cleared, **_step("read_answer", f"{who} answered that no record of {label} exists. "
+                                   "The question will not be asked again.")}
+    parts, notes = [], []
+    if answer.get("answer_text"):
+        parts.append(answer["answer_text"])
+    source = f"teacher_answer_{answer['request_id']}.txt"
+    if answer.get("answer_file"):
+        file = hub.db_path.parent / "inbox" / Path(answer["answer_file"]).name
+        text, note, ok = await _read_file(hub, file)
+        notes.append(note)
+        if ok:
+            parts.append(text)
+            if not answer.get("answer_text"):
+                source = str(file)   # the file is the whole answer: cite it as any other inbox file
+    if not parts:
+        return {**cleared, **_step("read_answer", f"{who} answered about {label}, but the answer could not be read. "
+                                   + " ".join(notes), ok=False)}
+    note = f"{who} supplied a record of {label}. Reading it, then investigating again."
+    return {"open_request": None, "document_text": "\n\n".join(parts), "inbox_file": source,
+            "answer_hint": {"concept_id": answer["concept_id"], "year": answer.get("answer_year"),
+                            "term": answer.get("answer_term")},
+            **_step("read_answer", (note + " " + " ".join(notes)).strip())}
+
+
 def _store(analyses: dict, tool: str, args: dict, result: dict) -> None:
     if tool == "find_patterns":
         analyses["patterns"] = result
@@ -411,6 +562,7 @@ def _candidates(analyses: dict, pack) -> tuple[list[dict], list[str]]:
     """Turn tool results into candidate findings. Deterministic: no model involved."""
     candidates, open_questions = [], []
     by_root: dict[str, dict] = {}
+    holes_raised: set[tuple] = set()
     for concept, traced in (analyses.get("roots") or {}).items():
         root = traced.get("root")
         if not root:
@@ -420,7 +572,11 @@ def _candidates(analyses: dict, pack) -> tuple[list[dict], list[str]]:
         if not traced.get("root_is_certain", True):
             # There is a hole in the record right under this root. Naming it as the cause
             # would be a guess, so it goes to the teacher as a question, with the reason.
-            open_questions.append(traced.get("reason") or f"Where the difficulty with {pack.label(concept)} began cannot be told from the records.")
+            # Several topics often run into the same hole. Raise it once, for the first of them.
+            hole = (root["concept_id"], tuple(traced.get("prerequisites_missing_in_record") or []))
+            if hole not in holes_raised:
+                holes_raised.add(hole)
+                open_questions.append(traced.get("reason") or f"Where the difficulty with {pack.label(concept)} began cannot be told from the records.")
             continue
         if traced.get("confidence", 0) < MIN_ROOT_CONFIDENCE or len(traced.get("evidence_ids", [])) < 2:
             open_questions.append(f"A possible starting point for the difficulty with {pack.label(concept)} is "
@@ -465,7 +621,7 @@ def _candidates(analyses: dict, pack) -> tuple[list[dict], list[str]]:
                 "kind": "what_worked", "concept_ids": [i["concept_id"] for i in a["instances"]], "path": [],
                 "evidence_ids": list(dict.fromkeys(ids)), "confidence": min(0.9, 0.4 + 0.15 * a["improved"]),
                 "facts": {"teaching_approach": a["label"], "times_followed_by_improvement": a["improved"],
-                          "times_not": a.get("not_improved", 0), "average_gain": a.get("mean_gain"),
+                          "times_not_followed_by_improvement": a.get("not_improved", 0), "average_gain": a.get("mean_gain"),
                           "topics": [pack.label(i["concept_id"]) for i in a["instances"]]},
             })
     return _without_repeats(candidates), list(dict.fromkeys(open_questions))
@@ -686,6 +842,15 @@ async def teacher_gate_summaries(state: RunState) -> dict:
 
 # --------------------------------------------------------------------------- graph
 
+def _after_ask(state: RunState) -> str:
+    return "teacher_gate_records" if state.get("open_request") else "compose_findings"
+
+
+def _after_answer(state: RunState) -> str:
+    # A record came back: go round again. No record: see whether another hole is worth a question.
+    return "extract_evidence" if (state.get("document_text") or "").strip() else "ask_for_records"
+
+
 def _after_propose(state: RunState) -> str:
     return "teacher_gate_findings" if state.get("finding_ids") else END
 
@@ -701,14 +866,17 @@ def _after_summaries(state: RunState) -> str:
 def build_graph() -> StateGraph:
     g = StateGraph(RunState)
     for node in (load_learner, read_document, extract_evidence, record_evidence, investigate,
-                 compose_findings, propose_findings, teacher_gate_findings, draft_summaries, teacher_gate_summaries):
+                 ask_for_records, teacher_gate_records, read_answer, compose_findings, propose_findings, teacher_gate_findings, draft_summaries, teacher_gate_summaries):
         g.add_node(node.__name__, node)
     g.add_edge(START, "load_learner")
     g.add_edge("load_learner", "read_document")
     g.add_edge("read_document", "extract_evidence")
     g.add_edge("extract_evidence", "record_evidence")
     g.add_edge("record_evidence", "investigate")
-    g.add_edge("investigate", "compose_findings")
+    g.add_edge("investigate", "ask_for_records")
+    g.add_conditional_edges("ask_for_records", _after_ask, ["teacher_gate_records", "compose_findings"])
+    g.add_edge("teacher_gate_records", "read_answer")
+    g.add_conditional_edges("read_answer", _after_answer, ["extract_evidence", "ask_for_records"])
     g.add_edge("compose_findings", "propose_findings")
     g.add_conditional_edges("propose_findings", _after_propose, ["teacher_gate_findings", END])
     g.add_conditional_edges("teacher_gate_findings", _after_gate, ["draft_summaries", END])

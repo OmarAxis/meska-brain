@@ -56,14 +56,16 @@ Built for the teacher, in service of the learner, adopted by the school.
 4. **Across subjects.** A learner's difficulty with maths word problems traces back to reading.
 5. **The agent at work.** It reads a new quiz sheet or a teacher's note in Swahili or Arabic, records the
    evidence, and proposes a finding. Every tool call is on screen.
-6. **The teacher decides.** Approve, edit or reject. The agent cannot approve anything.
-7. **Try to break it.** Ask it to label a child: the server refuses, and the refusal is logged.
+6. **The agent asks.** Where a record is missing it does not guess. It stops, asks the teacher for that
+   record, reads the answer and looks again.
+7. **The teacher decides.** Approve, edit or reject. The agent cannot approve anything.
+8. **Try to break it.** Ask it to label a child: the server refuses, and the refusal is logged.
 
 ## Where we are now, honestly
 
 **Built and working**
 
-- An MCP server with ten tools, an agent that runs on a local open model, and a teacher app.
+- An MCP server with twelve tools, an agent that runs on a local open model, and a teacher app.
 - Four subjects: mathematics, science (life science, materials, physics, earth and space), language and
   literacy, and technology, with links between subjects.
 - Teacher notes in several languages, an audit log of every action, and two teacher approval gates.

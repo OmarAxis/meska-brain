@@ -569,7 +569,7 @@ function drawTabs() {
 async function refreshPending() {
   try {
     const p = await api("/api/review/pending");
-    state.pendingCount = p.findings.length + p.summaries.length;
+    state.pendingCount = p.findings.length + p.summaries.length + (p.requests || []).length;
     drawTabs();
   } catch (e) { /* the badge is a convenience */ }
 }
@@ -708,7 +708,8 @@ async function viewOverview(root) {
   // waiting for a decision
   const waitCard = h("section", { class: "card" }, h("div", { class: "card-head" }, h("h3", { text: "Waiting for your decision" }),
     h("button", { type: "button", onclick: () => show("review") }, "Open review queue")));
-  if (!p.findings.length && !p.summaries.length) waitCard.append(h("p", { class: "empty", text: "Nothing is waiting. When the agent proposes a finding, it stops here until a named teacher decides." }));
+  for (const q of (p.requests || []).slice(0, 2)) waitCard.append(h("p", { class: "small" }, h("span", { class: "pill", text: "Missing record" }), " ", h("strong", { text: q.learner_alias }), " ", q.question));
+  if (!p.findings.length && !p.summaries.length && !(p.requests || []).length) waitCard.append(h("p", { class: "empty", text: "Nothing is waiting. When the agent proposes a finding, it stops here until a named teacher decides." }));
   const list = h("ul", { class: "waitlist" });
   for (const f of p.findings.slice(0, 5)) list.append(h("li", {},
     h("div", { class: "row" }, h("span", { class: "pill", text: KIND[f.kind] || f.kind }), h("strong", { text: aliasOf(f.learner_id) }), h("span", { class: "small muted", text: f.evidence.length + " records behind it" })),
@@ -1307,14 +1308,20 @@ async function viewPatterns(root) {
 // ---------------------------------------------------------------- review queue
 async function viewReview(root) {
   const p = await api("/api/review/pending");
-  state.pendingCount = p.findings.length + p.summaries.length;
+  state.pendingCount = p.findings.length + p.summaries.length + (p.requests || []).length;
   drawTabs();
+  const requests = p.requests || [];
   const lids = [...new Set([...p.findings.map((f) => f.learner_id), ...p.summaries.map((x) => x.learner_id)])];
   await Promise.all(lids.map((id) => getGraph(id).catch(() => null)));
   clear(root);
   root.append(h("h2", { text: "Review queue" }),
     h("p", { class: "muted", text: "Proposals wait here until a named teacher decides. Choose your name in the side panel first. Approving, editing or rejecting is recorded with your name." }));
-  if (!p.findings.length && !p.summaries.length) root.append(h("p", { class: "empty card", text: "Nothing is waiting for review." }));
+  if (!p.findings.length && !p.summaries.length && !requests.length) root.append(h("p", { class: "empty card", text: "Nothing is waiting for review." }));
+  if (requests.length) {
+    const inbox = await api("/api/inbox").catch(() => ({ files: [] }));
+    root.append(h("h3", { class: "section-title", text: "Records the agent is asking for (" + requests.length + ")" }));
+    for (const q of requests) root.append(requestCard(q, inbox.files || []));
+  }
   if (p.findings.length) root.append(h("h3", { class: "section-title", text: "Proposed findings (" + p.findings.length + ")" }));
   for (const f of p.findings) root.append(findingCard(f));
   if (p.summaries.length) root.append(h("h3", { class: "section-title", text: "Drafted summaries (" + p.summaries.length + ")" }));
@@ -1322,6 +1329,45 @@ async function viewReview(root) {
 }
 
 function decisionError(box, msg) { clear(box).append(h("span", { class: "err", role: "alert", text: msg })); }
+
+function requestCard(q, files) {
+  const msg = h("div", { "aria-live": "polite" });
+  const text = h("textarea", { id: "ans-" + q.id, placeholder: "For example: Division test, Q1 1 out of 2, Q2 0 out of 2." });
+  const year = h("input", { type: "number", id: "ansy-" + q.id, min: "2000", max: "2100", style: "width:110px" });
+  const term = h("select", { id: "anst-" + q.id }, h("option", { value: "", text: "Not sure" }), [1, 2, 3].map((t) => h("option", { value: String(t), text: "Term " + t })));
+  const file = h("select", { id: "ansf-" + q.id }, h("option", { value: "", text: "No file" }), files.map((f) => h("option", { value: f.name, text: f.name })));
+  const buttons = [];
+  async function send(answer) {
+    if (!teacherId()) return decisionError(msg, "Choose your name in “Signed in as” in the side panel first.");
+    buttons.forEach((b) => (b.disabled = true));
+    try {
+      const body = { answer, teacher_id: teacherId() };
+      if (answer === "provided") Object.assign(body, { text: text.value || null, inbox_file: file.value || null, year: year.value ? Number(year.value) : null, term: term.value ? Number(term.value) : null });
+      const r = await post("/api/requests/" + encodeURIComponent(q.id) + "/answer", body);
+      const who = state.teachers.find((t) => t.id === teacherId());
+      clear(msg).append(h("span", { class: "okmsg", text: (answer === "provided" ? "Record supplied" : "Answered that no record exists") + " by " + (who ? who.name : "you") + "." + (r.resumed_runs && r.resumed_runs.length ? " The waiting agent run was resumed and will read it now." : "") }));
+      card.querySelector(".controls").hidden = true;
+      refreshPending();
+    } catch (e) { decisionError(msg, e.message); buttons.forEach((b) => (b.disabled = false)); }
+  }
+  const give = h("button", { type: "button", class: "primary", onclick: () => send("provided") }, "Add this record");
+  const none = h("button", { type: "button", onclick: () => send("no_record") }, "No record exists");
+  buttons.push(give, none);
+  const card = h("article", { class: "card", "aria-label": "Record request for " + q.learner_alias },
+    h("div", { class: "row" }, h("span", { class: "pill", text: "Missing record" }), h("strong", { text: q.learner_alias }),
+      h("span", { class: "small muted", text: (q.concept_label || q.concept_id) + (q.grade ? ", grade " + q.grade : "") })),
+    h("p", { class: "statement", style: "font-size:16px;margin:8px 0", text: q.question }),
+    h("p", { class: "small muted", text: "The agent stopped instead of guessing. If you add a record, it reads it, files it as your answer, and looks again before it proposes anything. If you say none exists, it will not ask again." }),
+    h("div", { class: "controls", style: "display:grid;gap:8px;margin-top:10px" },
+      h("div", {}, h("label", { for: "ans-" + q.id, text: "What you have, in your own words (marks as “2 out of 5”)" }), text),
+      h("div", { class: "row" },
+        h("div", {}, h("label", { for: "ansy-" + q.id, text: "Year" }), year),
+        h("div", {}, h("label", { for: "anst-" + q.id, text: "Term" }), term),
+        h("div", {}, h("label", { for: "ansf-" + q.id, text: "Or a file from the inbox" }), file)),
+      h("div", { class: "row" }, give, none)),
+    msg);
+  return card;
+}
 
 function findingCard(f) {
   const msg = h("div", { "aria-live": "polite" });
@@ -1516,7 +1562,7 @@ function renderRun(out, r) {
     h("dl", { class: "kv" }, h("dt", { text: "Model" }), h("dd", { text: r.model || "not recorded" }), h("dt", { text: "Usage" }), h("dd", { text: usageText })));
   if (r.status === "waiting_for_teacher") {
     card.append(h("p", {}, h("strong", { text: "Waiting for a teacher. " }), h("a", { href: "#review", onclick: (ev) => { ev.preventDefault(); show("review"); } }, "Open the review queue"),
-      " to approve, edit or reject what the agent proposed. The run continues once you decide."));
+      (r.pending && r.pending.gate === "records") ? " to answer the agent's question about a missing record. The run continues once you answer." : " to approve, edit or reject what the agent proposed. The run continues once you decide."));
   }
   if (r.error) card.append(h("p", { class: "err", role: "alert", text: "The run stopped: " + r.error }));
   card.append(h("h3", { text: "Steps" }));
