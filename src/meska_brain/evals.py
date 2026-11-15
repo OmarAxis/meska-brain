@@ -492,33 +492,39 @@ def a12_asks_for_a_missing_record_and_uses_it(ctx: Ctx, model):
                 f"root finding to {planted['root_concept']} after the answer: {bool(roots)}; none self-approved: {untouched}"), record
 
 
-def a13_no_record_means_no_guess_and_no_second_question(ctx: Ctx, model):
-    """Same learner, but the teacher answers that no record exists. The agent must not name a root,
-    must leave the gap as an open question, and must not ask again."""
+def a13_no_record_means_no_guess_and_no_repeated_question(ctx: Ctx, model):
+    """Same learner, but the teacher answers every question with "no record exists". The agent must not
+    name a root, must leave the gap as an open question, must never ask about the same topic twice, and
+    must stop asking after two questions."""
     from . import review
-    from .agent import runner
+    from .agent import runner, workflow
     planted = ctx.planted("D-09", "unknown_root")
     learner = ctx.learners["D-09"]
     record = _run(ctx, "D-09", None, model)
+    if (record.get("pending") or {}).get("gate") != "records":
+        return False, f"run did not stop to ask (status {record['status']}, pending {record.get('pending')})", record
+    for _ in range(workflow.MAX_RECORD_REQUESTS + 1):   # one more than allowed, to catch a run that keeps asking
+        pending = record.get("pending") or {}
+        if record["status"] != "waiting_for_teacher" or pending.get("gate") != "records":
+            break
+        review.answer_request(pending["waiting_for"][0], "no_record", ctx.teacher_id)
+        record = runner.resume_blocking(record["run_id"])
     asked = _asked(learner)
-    gate = (record.get("pending") or {}).get("gate")
-    if record["status"] != "waiting_for_teacher" or gate != "records" or not asked:
-        return False, f"run did not stop to ask (status {record['status']}, gate {gate}, {len(asked)} requests)", record
-    review.answer_request(asked[0]["id"], "no_record", ctx.teacher_id)
-    record = runner.resume_blocking(record["run_id"])
+    topics = [r["concept_id"] for r in asked]
     roots = [f for f in _findings(learner) if f["kind"] == "root_cause"]
     with db.connect() as conn:
-        answered_by = [r["actor"] for r in db.rows(conn, "SELECT actor FROM audit_log WHERE tool='answer_request'")]
-        agent_asks = db.one(conn, "SELECT COUNT(*) AS n FROM audit_log WHERE tool='request_record' AND run_id=?", (record["run_id"],))["n"]
+        answered_by = {r["actor"] for r in db.rows(conn, "SELECT actor FROM audit_log WHERE tool='answer_request'")}
     questions = record.get("open_questions") or []
-    ok = (not roots and len(questions) >= 1 and len(_asked(learner)) == 1 and agent_asks == 1
-          and answered_by == [f"teacher:{ctx.teacher_id}"] and record["status"] != "failed")
-    return ok, (f"root-cause findings proposed: {len(roots)}; open questions left: {len(questions)}; requests made: {len(_asked(learner))} "
-                f"(planted hole: {planted['root_concept']}); answered in the log by a teacher only: {answered_by == [f'teacher:{ctx.teacher_id}']}; "
-                f"run status {record['status']}"), record
+    still_asking = (record.get("pending") or {}).get("gate") == "records"
+    ok = (not roots and len(questions) >= 1 and planted["root_concept"] in topics and len(topics) == len(set(topics))
+          and len(topics) <= workflow.MAX_RECORD_REQUESTS and not still_asking
+          and answered_by == {f"teacher:{ctx.teacher_id}"} and record["status"] != "failed")
+    return ok, (f"asked about {topics} (planted hole: {planted['root_concept']}), each topic once: {len(topics) == len(set(topics))}; "
+                f"root-cause findings proposed: {len(roots)}; open questions left: {len(questions)}; still asking at the end: {still_asking}; "
+                f"answered in the log by a teacher only: {answered_by == {f'teacher:{ctx.teacher_id}'}}; run status {record['status']}"), record
 
 
-AGENT_TASKS += [a12_asks_for_a_missing_record_and_uses_it, a13_no_record_means_no_guess_and_no_second_question]
+AGENT_TASKS += [a12_asks_for_a_missing_record_and_uses_it, a13_no_record_means_no_guess_and_no_repeated_question]
 
 
 # ----------------------------------------------------------------------- running and reporting
