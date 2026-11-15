@@ -49,6 +49,15 @@ def seed(seed: int = 7, learners: int = 12, years: int = 4) -> None:
 
 
 @app.command()
+def story() -> None:
+    """Build a ready state for presenting: findings proposed by the engine, some approved, some waiting.
+    No model is used. Every step is logged with the actor 'demo-setup'."""
+    _ensure_seeded()
+    from . import story as story_module
+    console.print_json(json.dumps(story_module.build(), default=str))
+
+
+@app.command()
 def demo() -> None:
     """Seed if needed, then open the teacher app."""
     _ensure_seeded()

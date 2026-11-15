@@ -127,3 +127,25 @@ def test_page_and_logo_are_served(client):
     logo = client.get("/static/brand/meska-white.png")
     assert logo.status_code == 200
     assert logo.headers["content-type"] == "image/png"
+
+
+def test_overview_describes_topics_and_records_not_learner_scores(client):
+    body = client.get("/api/overview").json()
+    assert body["totals"]["learners"] == 6
+    assert body["totals"]["records"] == sum(p["n"] for p in body["records_by_period"])
+    assert body["coverage"]["strands"] and body["coverage"]["grades"]
+    # The roster shows how complete each record is and what is waiting. It must never carry a score.
+    aliases = [r["alias"] for r in body["roster"]]
+    assert aliases == sorted(aliases, key=str.lower)
+    for row in body["roster"]:
+        assert not {"score", "mean", "average", "rank"} & set(row)
+
+
+def test_learner_dashboard_series_follow_the_record(client):
+    lid = client.get("/api/learners").json()["learners"][0]["learner_id"]
+    body = client.get(f"/api/learners/{lid}/dashboard").json()
+    assert body["totals"]["terms"] == len(body["periods"]) == len(body["timeline"])
+    assert body["totals"]["days_absent"] == sum(a["days"] for a in body["absences"])
+    for strand in body["strands"]:
+        assert all(0 <= p["mean"] <= 1 and p["n"] > 0 and p["period"] in body["periods"] for p in strand["points"])
+    assert client.get("/api/learners/nobody/dashboard").status_code == 400

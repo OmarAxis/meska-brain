@@ -37,13 +37,15 @@ It is general for school grades. The demo pack is school mathematics, grades 1 t
 
 ## Walkthrough (the teacher app)
 
-1. Run `uv run meska demo` and open http://127.0.0.1:8765. In "Signed in as" at the top, choose a teacher name. There is no password; the choice only records who decides. Pick **Learner A-17** in the list on the left. The **Map** tab shows the curriculum graph coloured by what this learner's records say (strong, shaky, gap, unseen).
+1. Run `uv run meska demo` and open http://127.0.0.1:8765. It opens on the **Class overview**: headline numbers, what is waiting for a teacher, records term by term, a curriculum picture by strand and grade, and the learners in alphabetical order. The overview describes topics and records; it never shows a score or a rank for a learner. In "Signed in as" at the bottom left, choose a teacher name. There is no password; the choice only records who decides. Click **Learner A-17**. The **Profile** shows results by strand term by term, patterns that held, teaching approaches and what followed, and a year by year timeline. Then open **Learning map**: the curriculum graph coloured by what this learner's records say (strong, shaky, gap, unseen).
 2. Press play on the **Term** slider (or drag it). The colours replay term by term, so you can watch where the low areas appear and that geometry stays strong.
 3. Click a low (red) topic, for example ratios, and press **Trace back**. The path is drawn back through its prerequisites to the deepest low topic, with the confidence, the absence context, any topic with no records (named, not guessed), and the records behind it.
 4. Open the **Agent** tab. Choose Learner A-17 and the file `quiz_sheet_A17_2025-T1.md`, then **Start a run**. The log shows each step, including checks and fallbacks, and lists any "questions the agent left open instead of guessing". The run stops at the first teacher gate.
 5. Open the **Review queue**. Each proposed finding shows its statement, confidence and the records it cites. Approve, edit or reject as your chosen teacher. The run resumes by itself and drafts notes. For a learner whose home language is not English (A-17's is Swahili) there are three: an English note for the guardian, a note for the guardian in the home language, and an English handover note for the next teacher. For an English-speaking family there are two. The run stops at the second gate. Approve or reject each note in the same queue. The home-language note is a machine draft that nobody who speaks the language has checked, so approve it only if a speaker has read it. Then open the **Audit log** tab to see every tool call and every decision with the teacher's name.
 
-Approved summaries are stored and returned by `GET /api/summaries`; the page does not yet have a screen that lists them after approval.
+Approved findings and notes for a learner are listed under **Approved**, with who approved each one.
+
+For a presentation, `uv run meska story` builds a ready state on a freshly seeded database: the engine's findings for three learners, some approved and some waiting. No model is used, the wording comes from fixed templates, and every step is logged with the actor `demo-setup` so it cannot be mistaken for the agent's work or a real teacher's decision. `uv run meska seed` wipes it.
 
 ## The same flow from the command line
 

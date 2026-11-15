@@ -16,6 +16,7 @@ from pydantic import BaseModel
 
 from .. import db, graph, review
 from ..config import get_settings
+from . import dashboard
 
 STATIC = Path(__file__).with_name("static")
 
@@ -84,6 +85,16 @@ def learners() -> dict:
                           "grade_now": r["latest_grade"] or r["start_grade"],
                           "home_language": r["home_language"], "evidence_count": r["evidence_count"]}
                          for r in found]}
+
+
+@app.get("/api/overview")
+def overview() -> dict:
+    return dashboard.overview()
+
+
+@app.get("/api/learners/{learner_id}/dashboard")
+def learner_dashboard(learner_id: str) -> dict:
+    return dashboard.learner_dashboard(learner_id)
 
 
 @app.get("/api/learners/{learner_id}/graph")

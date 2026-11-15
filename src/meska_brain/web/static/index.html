@@ -201,38 +201,166 @@ details[open] > summary { margin-bottom: 6px; }
   h2 { font-size: 20px; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+/* ---- App shell: side navigation in the brand gradient ---- */
+.app { display: grid; grid-template-columns: 248px minmax(0, 1fr); min-height: 100vh; }
+.side {
+  position: sticky; top: 0; height: 100vh; overflow: auto; display: flex; flex-direction: column; gap: 22px;
+  padding: 22px 16px; color: #fff; background: linear-gradient(170deg, #000038 0%, #000058 55%, #0000A8 100%);
+}
+.side .brand { display: block; padding: 2px 8px 0; }
+.side .brand img { height: 26px; width: auto; display: block; margin: 0 0 10px; }
+.side .brand h1 { font-size: 15px; font-weight: 600; color: #fff; letter-spacing: .02em; }
+.side .brand .sub { font-size: 12px; color: rgba(255, 255, 255, .66); margin-top: 2px; line-height: 1.4; }
+#nav { display: grid; gap: 4px; }
+#nav button {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; min-height: 42px; padding: 8px 12px;
+  border: 1px solid transparent; border-radius: 12px; background: transparent; color: rgba(255, 255, 255, .78); font-weight: 500;
+}
+#nav button svg { flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+#nav button:hover { background: rgba(255, 255, 255, .08); color: #fff; }
+#nav button[aria-current=page] { background: rgba(255, 255, 255, .14); border-color: rgba(255, 255, 255, .2); color: #fff; font-weight: 600; }
+#nav .badge { margin-left: auto; background: #fff; color: var(--blue-strong); }
+.side .who { margin-top: auto; display: grid; gap: 6px; padding: 14px 12px; border-radius: 14px; background: rgba(255, 255, 255, .07); border: 1px solid rgba(255, 255, 255, .12); }
+.side .who label { color: rgba(255, 255, 255, .7); margin: 0; }
+.side .who select { width: 100%; min-width: 0; background: rgba(255, 255, 255, .1); color: #fff; border-color: rgba(255, 255, 255, .3); }
+.side .who select option { color: var(--ink); background: #fff; }
+.side .who .note { font-size: 12px; color: rgba(255, 255, 255, .62); line-height: 1.4; max-width: none; }
+.side :focus-visible { outline-color: #fff; }
+main.content { padding: 28px 36px 48px; min-width: 0; max-width: 1500px; }
+
+.learnerbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 20px; margin-bottom: 22px; }
+.learnerbar nav.tabs { margin-bottom: 0; }
+.pickwrap { display: grid; }
+.pickwrap select { min-width: 230px; font-weight: 600; }
+.learner-view h2 { font-size: 22px; }
+
+.pagehead { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px 24px; margin-bottom: 20px; }
+.pagehead h2 { font-size: 28px; }
+.pagehead p { margin: 6px 0 0; }
+
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-bottom: 16px; }
+.tile { text-align: left; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px 18px; min-height: 0; display: block; font-weight: 400; }
+button.tile:hover { border-color: var(--blue); background: #fff; }
+.tile-label { font-size: 12px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.tile-value { font-size: 32px; font-weight: 700; line-height: 1.15; margin-top: 6px; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.tile-note { font-size: 13px; color: var(--muted); margin-top: 2px; }
+.tile.accent { background: linear-gradient(135deg, #000058 0%, #0000CE 100%); border-color: transparent; color: #fff; }
+.tile.accent .tile-label, .tile.accent .tile-note { color: rgba(255, 255, 255, .8); }
+button.tile.accent:hover { background: linear-gradient(135deg, #000070 0%, #1414E0 100%); }
+
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; align-items: start; }
+.grid2.wide-left { grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); }
+.grid2 > .card + .card { margin-top: 0; }
+main.content > #view > .card { margin-bottom: 16px; }
+.card-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 12px; margin-bottom: 4px; }
+.card-head button { min-height: 32px; padding: 4px 12px; font-size: 13px; }
+.card-head + p { margin: 0 0 12px; }
+
+.waitlist { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 10px; }
+.waitlist li { padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: #FAFBFE; }
+.wait-text { margin-top: 6px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+svg.chart { width: 100%; height: auto; display: block; }
+.chart .grid { stroke: var(--line); stroke-width: 1; }
+.chart .base { stroke: var(--line-strong); stroke-width: 1; }
+.chart .axis { font-size: 11px; fill: var(--muted); }
+.chart .bar { fill: var(--blue); }
+.chart .bar:hover { fill: var(--blue-strong); }
+.chart .band { fill: #EAF1FE; opacity: .7; }
+.chart .line { fill: none; stroke: var(--blue); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.chart .dot { fill: var(--blue); stroke: #fff; stroke-width: 2; }
+.chart .dot:hover { fill: var(--navy); }
+.chart .endlabel { font-size: 12px; font-weight: 600; fill: var(--ink); }
+.tip { position: fixed; z-index: 50; pointer-events: none; background: #0A0A2E; color: #fff; font-size: 12px; padding: 6px 10px; border-radius: 8px; max-width: 320px; box-shadow: 0 6px 20px rgba(0, 0, 56, .25); }
+
+.sparks { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+.spark { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px 6px; background: #fff; }
+.spark-title { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+
+table.heat { font-size: 13px; }
+table.heat th, table.heat td { border-bottom: none; padding: 3px 4px; background: transparent; }
+table.heat thead th { text-align: center; }
+table.heat tbody th { text-transform: none; letter-spacing: 0; font-size: 13px; color: var(--ink); font-weight: 500; white-space: normal; min-width: 150px; }
+.heat-cell { display: block; text-align: center; padding: 9px 4px; border-radius: 8px; font-weight: 600; font-variant-numeric: tabular-nums; min-width: 58px; }
+.heat-cell.none { background: transparent; border: 1px dashed var(--line-strong); color: var(--muted); font-weight: 400; font-size: 11px; padding: 10px 2px; }
+.heat-key { display: flex; align-items: center; gap: 4px; margin-top: 10px; }
+.heat-key span:first-child { margin-right: 4px; }
+.heat-key span:last-child { margin-left: 4px; }
+.heat-swatch { width: 22px; height: 10px; border-radius: 3px; }
+.tablewrap.plain { border: none; }
+table.heat tbody tr:hover td { background: transparent; }
+
+.hbars { display: grid; gap: 8px; margin-top: 8px; }
+.hbar { display: grid; grid-template-columns: minmax(110px, 34%) minmax(0, 1fr) auto; gap: 10px; align-items: center; font-size: 13px; }
+.hbar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hbar-track { height: 10px; border-radius: 5px; background: #EEF2F8; overflow: hidden; display: flex; gap: 2px; }
+.hbar-fill { display: block; height: 100%; background: var(--blue); border-radius: 5px; }
+.hbar-fill.rest { background: #B9C2D4; }
+.hbar-num { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.keyline { display: flex; align-items: center; gap: 6px; margin-top: 12px; }
+.key { width: 12px; height: 10px; border-radius: 3px; display: inline-block; }
+.key.a { background: var(--blue); }
+.key.b { background: #B9C2D4; margin-left: 12px; }
+
+.numcol { font-variant-numeric: tabular-nums; }
+button.linkish { border: none; background: transparent; padding: 0; min-height: 0; color: var(--accent); font-weight: 600; white-space: nowrap; text-align: left; }
+button.linkish:hover { text-decoration: underline; background: transparent; }
+
+.feed { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 2px; }
+.feed li { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); }
+.feed li:last-child { border-bottom: none; }
+.feed code { font: 12px ui-monospace, "Cascadia Mono", Consolas, monospace; background: var(--bg); padding: 2px 7px; border-radius: 6px; }
+.feed-time { margin-left: auto; }
+.dotmark { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); flex: none; }
+.dotmark.bad { background: var(--bad); }
+
+.patlist { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.patlist li { padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: #FAFBFE; }
+
+.terms { display: flex; gap: 10px; overflow-x: auto; padding: 4px 2px 12px; }
+.term { flex: 0 0 200px; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px; background: #fff; }
+.term-head { display: flex; justify-content: space-between; align-items: baseline; }
+.term-abs { font-size: 12px; color: var(--muted); margin: 4px 0 8px; }
+.term-abs.high { display: inline-block; color: #7A2E00; background: #FBE6D8; padding: 1px 8px; border-radius: 999px; font-weight: 600; }
+.term ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 13px; }
+.term li { display: grid; line-height: 1.3; }
+
+@media (max-width: 1100px) { .grid2, .grid2.wide-left { grid-template-columns: 1fr; } }
+@media (max-width: 800px) {
+  .app { grid-template-columns: 1fr; }
+  .side { position: static; height: auto; padding: 14px 16px; gap: 12px; }
+  #nav { grid-auto-flow: column; overflow-x: auto; }
+  #nav button span:not(.badge) { white-space: nowrap; }
+  main.content { padding: 18px 16px 36px; }
+  .pagehead h2 { font-size: 22px; }
+}
 </style>
 </head>
 <body>
-<header class="top">
-  <div class="brand">
-    <img src="/static/brand/meska-white.png" alt="meska.Ai" width="137" height="24">
-    <div class="product">
+<div class="app">
+  <aside class="side" aria-label="Meska Brain">
+    <div class="brand">
+      <img src="/static/brand/meska-white.png" alt="meska.Ai" width="148" height="26">
       <h1>Meska Brain</h1>
-      <div class="sub">A cited learning map. Patterns to check, decided by a named teacher.</div>
+      <div class="sub">A cited learning map. The teacher decides.</div>
     </div>
-  </div>
-  <div class="who">
-    <label for="teacher">Signed in as</label>
-    <select id="teacher"><option value="">Choose your name</option></select>
-    <span class="note">There is no password here. This only records who made each decision.</span>
-  </div>
-</header>
-
-<div class="layout">
-  <aside id="rail" aria-label="Learners">
-    <h2>Learners (by alias)</h2>
-    <ul id="learner-list"></ul>
+    <nav id="nav" aria-label="Sections"></nav>
+    <div class="who">
+      <label for="teacher">Signed in as</label>
+      <select id="teacher"><option value="">Choose your name</option></select>
+      <span class="note">No password in this demo. It records who made each decision.</span>
+    </div>
   </aside>
 
-  <main>
-    <nav class="tabs" id="tabs" aria-label="Sections"></nav>
+  <main class="content">
+    <div class="learnerbar" id="tabs" hidden></div>
     <div id="view"></div>
     <p class="small muted foot">
       Learners appear by alias only. Nothing on this page ranks or compares learners. Every finding shows the records it rests on.
     </p>
   </main>
 </div>
+<div id="tip" class="tip" role="tooltip" hidden></div>
 
 <script>
 "use strict";
@@ -310,7 +438,7 @@ const STATE_WORDS = {
 };
 
 const state = {
-  learners: [], teachers: [], learnerId: null, view: "map",
+  learners: [], teachers: [], learnerId: null, view: "overview", sub: "profile",
   graphs: {}, labels: {}, pendingCount: 0,
   sel: null, trace: null, periodIdx: 0, timer: null, runTimer: null, runId: null,
 };
@@ -352,7 +480,16 @@ function evidenceTable(rows) {
 }
 function db_period(r) { return r.year + "-T" + r.term; }
 
-// ---------------------------------------------------------------- learners and tabs
+// ---------------------------------------------------------------- navigation
+const NAV = [
+  ["overview", "Class overview", "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"],
+  ["learner", "Learners", "M12 12a4 4 0 100-8 4 4 0 000 8zM4 20c0-4 4-6 8-6s8 2 8 6"],
+  ["review", "Review queue", "M10 6h10M10 12h10M10 18h10M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"],
+  ["agent", "Agent", "M12 3v4M12 17v4M3 12h4M17 12h4M6 6l3 3M15 15l3 3M18 6l-3 3M9 15l-3 3"],
+  ["audit", "Audit log", "M6 3h9l4 4v14H6zM9 12h7M9 16h7M9 8h3"],
+];
+const SUB = [["profile", "Profile"], ["map", "Learning map"], ["patterns", "Patterns"], ["approved", "Approved"]];
+
 async function init() {
   try {
     const [l, t] = await Promise.all([api("/api/learners"), api("/api/teachers")]);
@@ -367,42 +504,37 @@ async function init() {
   const saved = store("meska.teacher");
   if (saved && state.teachers.some((t) => t.id === saved)) sel.value = saved;
   sel.addEventListener("change", () => store("meska.teacher", sel.value));
-  drawRail();
   const savedLearner = store("meska.learner");
   const first = state.learners.find((l) => l.learner_id === savedLearner) || state.learners[0];
   if (first) state.learnerId = first.learner_id;
-  drawRail();
   refreshPending();
-  show(location.hash.slice(1) || "map");
+  show(location.hash.slice(1) || "overview");
 }
 
-function drawRail() {
-  const ul = clear(document.getElementById("learner-list"));
-  for (const l of state.learners) {
-    ul.append(h("li", {}, h("button", {
-      type: "button", "aria-current": l.learner_id === state.learnerId ? "true" : "false",
-      onclick: () => pickLearner(l.learner_id),
-    }, h("span", { text: l.alias }), h("span", { class: "grade", text: "Grade " + l.grade_now }))));
-  }
-}
-function pickLearner(id) {
-  if (id === state.learnerId) return;
+function pickLearner(id, sub) {
   state.learnerId = id;
   store("meska.learner", id);
   state.sel = null; state.trace = null;
-  drawRail();
-  show(state.view);
+  show("learner/" + (sub || state.sub));
 }
 
-const TABS = [["map", "Map"], ["patterns", "Patterns"], ["review", "Review queue"], ["approved", "Approved"], ["agent", "Agent"], ["audit", "Audit log"]];
 function drawTabs() {
-  const nav = clear(document.getElementById("tabs"));
-  for (const [id, name] of TABS) {
-    nav.append(h("button", {
-      type: "button", "aria-current": id === state.view ? "page" : "false",
-      onclick: () => show(id),
-    }, name, id === "review" && state.pendingCount ? h("span", { class: "badge", text: state.pendingCount, "aria-label": state.pendingCount + " waiting" }) : null));
+  const nav = clear(document.getElementById("nav"));
+  for (const [id, name, icon] of NAV) {
+    nav.append(h("button", { type: "button", "aria-current": id === state.view ? "page" : "false", onclick: () => show(id) },
+      s("svg", { viewBox: "0 0 24 24", width: 18, height: 18, "aria-hidden": "true" }, s("path", { d: icon })),
+      h("span", { text: name }),
+      id === "review" && state.pendingCount ? h("span", { class: "badge", text: state.pendingCount, "aria-label": state.pendingCount + " waiting" }) : null));
   }
+  const bar = clear(document.getElementById("tabs"));
+  bar.hidden = state.view !== "learner";
+  if (bar.hidden) return;
+  const pick = h("select", { id: "learner-pick", "aria-label": "Learner" },
+    state.learners.map((l) => h("option", { value: l.learner_id, selected: l.learner_id === state.learnerId, text: l.alias + "  ·  Grade " + l.grade_now })));
+  pick.addEventListener("change", () => pickLearner(pick.value));
+  const tabs = h("nav", { class: "tabs", "aria-label": "Learner sections" },
+    SUB.map(([id, name]) => h("button", { type: "button", "aria-current": id === state.sub ? "page" : "false", onclick: () => show("learner/" + id) }, name)));
+  bar.append(h("div", { class: "pickwrap" }, h("label", { for: "learner-pick", text: "Learner" }), pick), tabs);
 }
 async function refreshPending() {
   try {
@@ -413,12 +545,251 @@ async function refreshPending() {
 }
 function show(view) {
   stopTimers();
-  state.view = TABS.some((t) => t[0] === view) ? view : "map";
-  history.replaceState(null, "", "#" + state.view);
+  let [v, sub] = String(view || "").split("/");
+  if (SUB.some((t) => t[0] === v)) { sub = v; v = "learner"; }          // old links such as #map
+  state.view = NAV.some((t) => t[0] === v) ? v : "overview";
+  if (state.view === "learner") state.sub = SUB.some((t) => t[0] === sub) ? sub : (state.sub || "profile");
+  history.replaceState(null, "", "#" + (state.view === "learner" ? "learner/" + state.sub : state.view));
   drawTabs();
   const root = clear(document.getElementById("view"));
-  const fn = { map: viewMap, patterns: viewPatterns, review: viewReview, approved: viewApproved, agent: viewAgent, audit: viewAudit }[state.view];
+  root.className = state.view === "learner" ? "learner-view" : "";
+  const fn = state.view === "learner"
+    ? { profile: viewProfile, map: viewMap, patterns: viewPatterns, approved: viewApproved }[state.sub]
+    : { overview: viewOverview, review: viewReview, agent: viewAgent, audit: viewAudit }[state.view];
   Promise.resolve(fn(root)).catch((e) => root.append(h("p", { class: "err", role: "alert", text: e.message })));
+  window.scrollTo(0, 0);
+}
+
+// ---------------------------------------------------------------- small chart helpers
+function tip(el, text) {
+  const box = document.getElementById("tip");
+  el.addEventListener("mousemove", (e) => {
+    box.textContent = text; box.hidden = false;
+    const w = box.offsetWidth, x = Math.min(window.innerWidth - w - 12, e.clientX + 14);
+    box.style.left = Math.max(8, x) + "px"; box.style.top = (e.clientY + 16) + "px";
+  });
+  el.addEventListener("mouseleave", () => { box.hidden = true; });
+  el.append(s("title", { text }));
+}
+function tile(label, value, note, opts) {
+  const o = opts || {};
+  const el = h(o.onclick ? "button" : "div", { class: "tile" + (o.accent ? " accent" : ""), type: o.onclick ? "button" : null, onclick: o.onclick },
+    h("div", { class: "tile-label", text: label }), h("div", { class: "tile-value", text: value }),
+    note ? h("div", { class: "tile-note", text: note }) : null);
+  return el;
+}
+const num = (n) => Number(n || 0).toLocaleString("en");
+const KIND_PLURAL = { quiz_item: "Quiz items", assignment: "Assignments", project: "Projects", observation: "Teacher notes", attendance: "Attendance records" };
+
+function barRows(items, total) {
+  const max = Math.max(1, ...items.map((i) => i.n));
+  return h("div", { class: "hbars" }, items.map((i) => h("div", { class: "hbar" },
+    h("span", { class: "hbar-label", text: i.label }),
+    h("span", { class: "hbar-track" }, h("span", { class: "hbar-fill", style: "width:" + Math.max(1.5, (i.n / max) * 100) + "%" })),
+    h("span", { class: "hbar-num", text: num(i.n) + (total ? "  (" + Math.round((i.n / total) * 100) + "%)" : "") }))));
+}
+
+function columnChart(points, label) {
+  const W = 620, H = 210, L = 40, R = 8, T = 10, B = 28;
+  const max = Math.max(1, ...points.map((p) => p.n));
+  const top = Math.ceil(max / 50) * 50 || 50;
+  const svg = s("svg", { viewBox: "0 0 " + W + " " + H, class: "chart", role: "img", "aria-label": label });
+  for (const f of [0, 0.5, 1]) {
+    const y = T + (H - T - B) * (1 - f);
+    svg.append(s("line", { class: "grid", x1: L, x2: W - R, y1: y, y2: y }), s("text", { class: "axis", x: L - 6, y: y + 4, "text-anchor": "end", text: Math.round(top * f) }));
+  }
+  const step = (W - L - R) / Math.max(1, points.length), bw = Math.min(34, step - 4);
+  points.forEach((p, i) => {
+    const bh = (H - T - B) * (p.n / top), x = L + i * step + (step - bw) / 2, y = H - B - bh;
+    const bar = s("path", { class: "bar", d: "M" + x + "," + (H - B) + " v" + (-(bh - 4)) + " q0,-4 4,-4 h" + (bw - 8) + " q4,0 4,4 v" + (bh - 4) + " z" });
+    tip(bar, p.period + ": " + num(p.n) + " records");
+    svg.append(bar);
+    if (p.period.endsWith("T1")) svg.append(s("text", { class: "axis", x: x + bw / 2, y: H - 9, "text-anchor": "middle", text: p.period.slice(0, 4) }));
+  });
+  return svg;
+}
+
+const HEAT = ["#EAF1FE", "#C5D9FC", "#94B8F9", "#5C93F6", "#1B5BD6"];
+function heatColour(mean) {
+  const i = Math.max(0, Math.min(4, Math.floor((mean - 0.4) / 0.1)));
+  return { bg: HEAT[i], ink: i >= 3 ? "#FFFFFF" : "#0A0A0A" };
+}
+function heatGrid(cov) {
+  const table = h("table", { class: "heat" },
+    h("thead", {}, h("tr", {}, h("th", { scope: "col", text: "Strand" }), cov.grades.map((g) => h("th", { scope: "col", text: "Grade " + g })))),
+    h("tbody", {}, cov.strands.map((st) => h("tr", {}, h("th", { scope: "row", text: st.label }),
+      st.cells.map((c) => {
+        if (c.mean === null) return h("td", {}, h("span", { class: "heat-cell none", text: "no records" }));
+        const col = heatColour(c.mean);
+        const cellEl = h("span", { class: "heat-cell", style: "background:" + col.bg + ";color:" + col.ink, text: pct(c.mean) });
+        tip(cellEl, st.label + ", grade " + c.grade + ": average " + pct(c.mean) + " over " + num(c.n) + " scored items");
+        return h("td", {}, cellEl);
+      })))));
+  const key = h("div", { class: "heat-key small muted" }, h("span", { text: "Lower" }),
+    HEAT.map((c) => h("span", { class: "heat-swatch", style: "background:" + c })), h("span", { text: "Higher average score" }));
+  return h("div", {}, h("div", { class: "tablewrap plain" }, table), key);
+}
+
+function spark(strand, periods, th) {
+  const W = 280, H = 118, L = 8, R = 40, T = 12, B = 20;
+  const x = (p) => L + (periods.length < 2 ? 0 : (periods.indexOf(p) / (periods.length - 1)) * (W - L - R));
+  const y = (m) => T + (1 - m) * (H - T - B);
+  const svg = s("svg", { viewBox: "0 0 " + W + " " + H, class: "chart", role: "img", "aria-label": strand.label + " results by term" });
+  svg.append(s("rect", { class: "band", x: L, y: y(1), width: W - L - R, height: y(th.strong_above) - y(1) }),
+    s("line", { class: "grid", x1: L, x2: W - R, y1: y(th.strong_above), y2: y(th.strong_above) }),
+    s("line", { class: "grid", x1: L, x2: W - R, y1: y(th.gap_below), y2: y(th.gap_below) }),
+    s("line", { class: "base", x1: L, x2: W - R, y1: y(0), y2: y(0) }),
+    s("text", { class: "axis", x: L, y: H - 5, text: periods[0].slice(0, 4) }),
+    s("text", { class: "axis", x: W - R, y: H - 5, "text-anchor": "end", text: periods[periods.length - 1].slice(0, 4) }));
+  const pts = strand.points;
+  if (pts.length > 1) svg.append(s("path", { class: "line", d: pts.map((p, i) => (i ? "L" : "M") + x(p.period).toFixed(1) + "," + y(p.mean).toFixed(1)).join(" ") }));
+  for (const p of pts) {
+    const dot = s("circle", { class: "dot", cx: x(p.period), cy: y(p.mean), r: 4.5 });
+    tip(dot, p.period + ": " + pct(p.mean) + " over " + p.n + " scored items");
+    svg.append(dot);
+  }
+  const last = pts[pts.length - 1];
+  svg.append(s("text", { class: "endlabel", x: Math.min(W - 4, x(last.period) + 9), y: y(last.mean) + 4, text: pct(last.mean) }));
+  return h("div", { class: "spark" }, h("div", { class: "spark-title", text: strand.label }), svg);
+}
+
+// ---------------------------------------------------------------- class overview
+async function viewOverview(root) {
+  root.append(h("p", { class: "muted", text: "Loading..." }));
+  const [o, p] = await Promise.all([api("/api/overview"), api("/api/review/pending")]);
+  await Promise.all([...new Set(p.findings.map((f) => f.learner_id))].slice(0, 6).map((id) => getGraph(id).catch(() => null)));
+  const t = o.totals;
+  clear(root);
+  root.append(h("div", { class: "pagehead" },
+    h("div", {}, h("h2", { text: "Class overview" }),
+      h("p", { class: "muted", text: (o.curriculum ? o.curriculum.name + ". " : "") + "Learners appear by alias. All data in this demo is synthetic." })),
+    h("button", { type: "button", class: "primary", onclick: () => show("agent") }, "Run the agent on a document")));
+
+  root.append(h("div", { class: "tiles" },
+    tile("Learners followed", num(t.learners), "by " + t.teachers + " teachers over the years"),
+    tile("Records on file", num(t.records), "quiz items, notes, attendance"),
+    tile("Curriculum covered", t.concepts_with_records + " of " + t.concepts_in_curriculum, "topics with at least one record"),
+    tile("Waiting for a teacher", num(t.waiting), t.waiting ? "open the review queue" : "nothing to decide", { accent: t.waiting > 0, onclick: () => show("review") }),
+    tile("Approved by teachers", num(t.approved), num(t.decisions) + " decisions recorded"),
+    tile("Tool calls logged", num(t.tool_calls), num(t.refused_calls) + " refused by the server", { onclick: () => show("audit") })));
+
+  // waiting for a decision
+  const waitCard = h("section", { class: "card" }, h("div", { class: "card-head" }, h("h3", { text: "Waiting for your decision" }),
+    h("button", { type: "button", onclick: () => show("review") }, "Open review queue")));
+  if (!p.findings.length && !p.summaries.length) waitCard.append(h("p", { class: "empty", text: "Nothing is waiting. When the agent proposes a finding, it stops here until a named teacher decides." }));
+  const list = h("ul", { class: "waitlist" });
+  for (const f of p.findings.slice(0, 5)) list.append(h("li", {},
+    h("div", { class: "row" }, h("span", { class: "pill", text: KIND[f.kind] || f.kind }), h("strong", { text: aliasOf(f.learner_id) }), h("span", { class: "small muted", text: f.evidence.length + " records behind it" })),
+    h("div", { class: "wait-text", text: f.statement })));
+  for (const sm of p.summaries.slice(0, Math.max(0, 5 - p.findings.length))) list.append(h("li", {},
+    h("div", { class: "row" }, h("span", { class: "pill plain", text: "Drafted note, " + langName(sm.language) }), h("strong", { text: aliasOf(sm.learner_id) })),
+    h("div", { class: "wait-text", text: sm.text })));
+  if (list.children.length) waitCard.append(list);
+  const more = p.findings.length + p.summaries.length - list.children.length;
+  if (more > 0) waitCard.append(h("p", { class: "small muted", text: "and " + more + " more in the review queue." }));
+
+  const flowCard = h("section", { class: "card" }, h("div", { class: "card-head" }, h("h3", { text: "Records on file, term by term" })),
+    h("p", { class: "small muted", text: "Every bar is one school term. The record goes back " + o.records_by_period.length + " terms." }),
+    columnChart(o.records_by_period, "Records per term"));
+  root.append(h("div", { class: "grid2" }, waitCard, flowCard));
+
+  // curriculum picture + record mix
+  const heatCard = h("section", { class: "card" }, h("div", { class: "card-head" }, h("h3", { text: "Curriculum picture across the class" })),
+    h("p", { class: "small muted", text: "Average score on all records, by strand and by the grade the topic belongs to. This describes topics, not learners." }),
+    heatGrid(o.coverage));
+  const mixCard = h("section", { class: "card" }, h("div", { class: "card-head" }, h("h3", { text: "What the records are" })),
+    barRows(o.records_by_kind.map((k) => ({ label: KIND_PLURAL[k.kind] || k.kind, n: k.n })), t.records),
+    h("h3", { class: "section-title", text: "Languages teachers wrote in" }),
+    barRows(o.records_by_language.filter((l) => l.language !== "en").map((l) => ({ label: langName(l.language), n: l.n }))),
+    h("p", { class: "small muted", text: "Notes are kept in the teacher's own words and language." }));
+  root.append(h("div", { class: "grid2 wide-left" }, heatCard, mixCard));
+
+  // roster + activity
+  const rows = o.roster.map((r) => h("tr", {},
+    h("td", {}, h("button", { type: "button", class: "linkish", onclick: () => pickLearner(r.learner_id, "profile") }, r.alias)),
+    h("td", { text: langName(r.home_language) }), h("td", { class: "numcol", text: num(r.records) }), h("td", { class: "numcol", text: r.terms }),
+    h("td", { text: r.last_period || "none" }),
+    h("td", {}, r.waiting ? h("span", { class: "pill", text: r.waiting + " waiting" }) : h("span", { class: "muted", text: "none" })),
+    h("td", {}, r.approved ? h("span", { class: "pill ok", text: r.approved + " approved" }) : h("span", { class: "muted", text: "none" }))));
+  const rosterCard = h("section", { class: "card" }, h("div", { class: "card-head" }, h("h3", { text: "Learners" })),
+    h("p", { class: "small muted", text: "In alphabetical order. This table shows how complete each record is and what is waiting, never a score or a rank." }),
+    h("div", { class: "tablewrap" }, h("table", {},
+      h("thead", {}, h("tr", {}, ["Learner", "Home language", "Records", "Terms followed", "Latest record", "Waiting for a teacher", "Approved"].map((x) => h("th", { scope: "col", text: x })))),
+      h("tbody", {}, rows))));
+  const feed = h("section", { class: "card" }, h("div", { class: "card-head" }, h("h3", { text: "Every action is logged" }),
+    h("button", { type: "button", onclick: () => show("audit") }, "Open audit log")));
+  if (!o.recent_calls.length) feed.append(h("p", { class: "empty", text: "No tool calls yet. Run the agent and each call appears here with its inputs, outputs and time." }));
+  else feed.append(h("ul", { class: "feed" }, o.recent_calls.map((c) => h("li", {},
+    h("span", { class: "dotmark" + (c.ok ? "" : " bad") }), h("code", { text: c.tool }),
+    h("span", { class: "small muted", text: c.actor.replace(/^teacher:.*/, "a teacher") + (c.ok ? "" : ", refused") }),
+    h("span", { class: "small muted feed-time", text: new Date(c.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) })))));
+  if (o.calls_by_tool.length) feed.append(h("h3", { class: "section-title", text: "Calls by tool" }), barRows(o.calls_by_tool.slice(0, 6).map((c) => ({ label: c.tool, n: c.n }))));
+  root.append(h("div", { class: "grid2 wide-left" }, rosterCard, feed));
+}
+
+// ---------------------------------------------------------------- learner profile
+async function viewProfile(root) {
+  if (!state.learnerId) { root.append(h("p", { class: "empty", text: "No learners yet." })); return; }
+  root.append(h("p", { class: "muted", text: "Loading..." }));
+  const lid = encodeURIComponent(state.learnerId);
+  await getGraph(state.learnerId).catch(() => null);
+  const [d, pat, ww] = await Promise.all([api("/api/learners/" + lid + "/dashboard"), api("/api/learners/" + lid + "/patterns"), api("/api/learners/" + lid + "/what-worked")]);
+  const t = d.totals;
+  clear(root);
+  root.append(h("div", { class: "pagehead" },
+    h("div", {}, h("h2", { text: d.learner.alias }),
+      h("p", { class: "muted", text: "Grade " + d.learner.grade_now + ". Home language: " + langName(d.learner.home_language) + ". Followed from " + (t.first_period || "?") + " to " + (t.last_period || "?") + "." })),
+    h("button", { type: "button", class: "primary", onclick: () => show("learner/map") }, "Open the learning map")));
+
+  root.append(h("div", { class: "tiles" },
+    tile("Records on file", num(t.records), d.records_by_kind.slice(0, 2).map((k) => num(k.n) + " " + (KIND_PLURAL[k.kind] || k.kind).toLowerCase()).join(", ")),
+    tile("Terms followed", t.terms, (t.first_period || "") + " to " + (t.last_period || "")),
+    tile("Days absent on record", num(t.days_absent), "across all terms"),
+    tile("Waiting for a teacher", num(t.waiting), t.waiting ? "open the review queue" : "nothing to decide", { accent: t.waiting > 0, onclick: () => show("review") }),
+    tile("Approved by teachers", num(t.approved), "findings and notes", { onclick: () => show("learner/approved") })));
+
+  // the long view
+  const long = h("section", { class: "card" }, h("div", { class: "card-head" }, h("h3", { text: "The long view: results by strand, term by term" })),
+    h("p", { class: "small muted", text: "Each dot is the average of that term's scored items in one strand. The shaded band is " + pct(d.thresholds.strong_above) + " and above; the lower line is " + pct(d.thresholds.gap_below) + ". Hover a dot for the numbers." }));
+  if (!d.strands.length) long.append(h("p", { class: "empty", text: "No scored records yet." }));
+  else long.append(h("div", { class: "sparks" }, d.strands.map((st) => spark(st, d.periods, d.thresholds))));
+  root.append(long);
+
+  // what the records show
+  const strengths = pat.patterns.filter((x) => x.kind === "strength"), struggles = pat.patterns.filter((x) => x.kind !== "strength");
+  const patList = (items, none) => items.length ? h("ul", { class: "patlist" }, items.map((x) => h("li", {},
+    h("strong", { text: x.label }),
+    h("span", { class: "small muted", text: " " + (x.kind === "strength" ? "stayed high" : "stayed low") + " for " + x.periods.length + " terms: average " + pct(x.mean) + " over " + x.n_items + " items" })))) : h("p", { class: "muted", text: none });
+  const seeAll = () => h("button", { type: "button", onclick: () => show("learner/patterns") }, "See the evidence");
+  root.append(h("div", { class: "grid2" },
+    h("section", { class: "card" }, h("div", { class: "card-head" }, h("h3", { text: "Where this learner could excel" }), seeAll()),
+      h("p", { class: "small muted", text: "Results that stayed high for three terms or more." }), patList(strengths, "No strength has held for three terms yet.")),
+    h("section", { class: "card" }, h("div", { class: "card-head" }, h("h3", { text: "Worth a closer look" }), seeAll()),
+      h("p", { class: "small muted", text: "Results that stayed low for three terms or more. A pattern to check, not a label." }), patList(struggles, "Nothing has stayed low for three terms."))));
+
+  // what helped
+  const helped = h("section", { class: "card" }, h("div", { class: "card-head" }, h("h3", { text: "Teaching approaches and what followed" })), h("p", { class: "small muted", text: ww.note }));
+  if (!ww.approaches.length) helped.append(h("p", { class: "muted", text: "Not enough before-and-after records yet." }));
+  else {
+    const max = Math.max(1, ...ww.approaches.map((a) => a.improved + a.not_improved));
+    helped.append(h("div", { class: "hbars" }, ww.approaches.map((a) => h("div", { class: "hbar" },
+      h("span", { class: "hbar-label", text: a.label }),
+      h("span", { class: "hbar-track split" },
+        h("span", { class: "hbar-fill", style: "width:" + (a.improved / max) * 100 + "%" }),
+        h("span", { class: "hbar-fill rest", style: "width:" + (a.not_improved / max) * 100 + "%" })),
+      h("span", { class: "hbar-num", text: "scores rose " + a.improved + " of " + (a.improved + a.not_improved) + " times" })))),
+      h("div", { class: "small muted keyline" }, h("span", { class: "key a" }), "scores rose afterwards", h("span", { class: "key b" }), "did not rise"));
+  }
+  root.append(helped);
+
+  // year by year
+  const years = h("section", { class: "card" }, h("div", { class: "card-head" }, h("h3", { text: "Year by year" })),
+    h("p", { class: "small muted", text: "What was taught each term, how it was taught, and days absent. Scroll sideways to move through the years." }),
+    h("div", { class: "terms", tabindex: 0, role: "region", "aria-label": "Term by term timeline" }, d.timeline.map((term) => h("div", { class: "term" },
+      h("div", { class: "term-head" }, h("strong", { text: term.period }), h("span", { class: "small muted", text: "Grade " + term.grade })),
+      h("div", { class: "term-abs" + (term.absent_days >= 10 ? " high" : ""), text: term.absent_days + " days absent" }),
+      h("ul", {}, term.taught.map((u) => h("li", {}, h("span", { text: u.concept }), h("span", { class: "small muted", text: u.approach }))))))));
+  root.append(years);
 }
 
 // ---------------------------------------------------------------- the map
@@ -776,7 +1147,7 @@ async function viewReview(root) {
   await Promise.all(lids.map((id) => getGraph(id).catch(() => null)));
   clear(root);
   root.append(h("h2", { text: "Review queue" }),
-    h("p", { class: "muted", text: "Proposals wait here until a named teacher decides. Choose your name at the top first. Approving, editing or rejecting is recorded with your name." }));
+    h("p", { class: "muted", text: "Proposals wait here until a named teacher decides. Choose your name in the side panel first. Approving, editing or rejecting is recorded with your name." }));
   if (!p.findings.length && !p.summaries.length) root.append(h("p", { class: "empty card", text: "Nothing is waiting for review." }));
   if (p.findings.length) root.append(h("h3", { class: "section-title", text: "Proposed findings (" + p.findings.length + ")" }));
   for (const f of p.findings) root.append(findingCard(f));
@@ -794,7 +1165,7 @@ function findingCard(f) {
     h("button", { type: "button", class: "primary", onclick: () => send("edited") }, "Save edit and approve"));
   const buttons = [];
   async function send(decision) {
-    if (!teacherId()) return decisionError(msg, "Choose your name in “Signed in as” at the top first.");
+    if (!teacherId()) return decisionError(msg, "Choose your name in “Signed in as” in the side panel first.");
     buttons.forEach((b) => (b.disabled = true));
     try {
       const body = { decision, teacher_id: teacherId(), note: note.value || null };
@@ -829,7 +1200,7 @@ function summaryCard(sm) {
   const note = h("input", { type: "text", id: "snote-" + sm.id, placeholder: "Optional" });
   const buttons = [];
   async function send(decision) {
-    if (!teacherId()) return decisionError(msg, "Choose your name in “Signed in as” at the top first.");
+    if (!teacherId()) return decisionError(msg, "Choose your name in “Signed in as” in the side panel first.");
     buttons.forEach((b) => (b.disabled = true));
     try {
       const r = await post("/api/summaries/" + encodeURIComponent(sm.id) + "/decision", { decision, teacher_id: teacherId(), note: note.value || null });
