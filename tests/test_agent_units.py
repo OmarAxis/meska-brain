@@ -285,3 +285,16 @@ def test_the_graph_has_the_loop_back_to_reading():
     assert {("investigate", "ask_for_records"), ("ask_for_records", "teacher_gate_records"),
             ("ask_for_records", "compose_findings"), ("teacher_gate_records", "read_answer"),
             ("read_answer", "extract_evidence"), ("read_answer", "ask_for_records")} <= edges
+
+
+def test_one_open_question_per_hole_in_the_record():
+    """Five topics that all run into the same missing record are one question for the teacher, not five."""
+    def traced(topic):
+        return {"root": {"concept_id": "fractions", "label": "Fractions"}, "root_is_certain": False,
+                "prerequisites_missing_in_record": ["division"], "reason": f"{topic} is low. No records for division."}
+    analyses = {"roots": {t: traced(t) for t in ("decimals", "ratio", "percentages")}}
+    analyses["roots"]["area"] = {"root": {"concept_id": "length", "label": "Length"}, "root_is_certain": False,
+                                 "prerequisites_missing_in_record": ["units"], "reason": "Area is low. No records for units."}
+    candidates, questions = workflow._candidates(analyses, _Pack())
+    assert candidates == []
+    assert questions == ["decimals is low. No records for division.", "Area is low. No records for units."]

@@ -562,6 +562,7 @@ def _candidates(analyses: dict, pack) -> tuple[list[dict], list[str]]:
     """Turn tool results into candidate findings. Deterministic: no model involved."""
     candidates, open_questions = [], []
     by_root: dict[str, dict] = {}
+    holes_raised: set[tuple] = set()
     for concept, traced in (analyses.get("roots") or {}).items():
         root = traced.get("root")
         if not root:
@@ -571,7 +572,11 @@ def _candidates(analyses: dict, pack) -> tuple[list[dict], list[str]]:
         if not traced.get("root_is_certain", True):
             # There is a hole in the record right under this root. Naming it as the cause
             # would be a guess, so it goes to the teacher as a question, with the reason.
-            open_questions.append(traced.get("reason") or f"Where the difficulty with {pack.label(concept)} began cannot be told from the records.")
+            # Several topics often run into the same hole. Raise it once, for the first of them.
+            hole = (root["concept_id"], tuple(traced.get("prerequisites_missing_in_record") or []))
+            if hole not in holes_raised:
+                holes_raised.add(hole)
+                open_questions.append(traced.get("reason") or f"Where the difficulty with {pack.label(concept)} began cannot be told from the records.")
             continue
         if traced.get("confidence", 0) < MIN_ROOT_CONFIDENCE or len(traced.get("evidence_ids", [])) < 2:
             open_questions.append(f"A possible starting point for the difficulty with {pack.label(concept)} is "
