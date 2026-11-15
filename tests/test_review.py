@@ -110,3 +110,18 @@ def test_decision_is_undone_if_its_audit_row_cannot_be_written(db_path, monkeypa
     with db.connect(db_path) as conn:
         assert db.one(conn, "SELECT status FROM findings WHERE id = ?", (finding_id,))["status"] == "proposed"
     assert _approvals(db_path) == []
+
+
+def test_a_decision_that_loses_the_race_changes_nothing(db_path):
+    """The status check is part of the UPDATE, so a second decision cannot overwrite the first."""
+    finding_id = _propose(db_path)
+    review.decide_finding(finding_id, "approved", "tch_jean", db_path=db_path)
+    with pytest.raises(ValueError, match=r"already decided \(approved\)"):
+        review.decide_finding(finding_id, "edited", "tch_amina", edited_statement="Results stayed low for three terms.",
+                              db_path=db_path)
+    with db.connect(db_path) as conn:
+        row = db.one(conn, "SELECT status, decided_by, statement FROM findings WHERE id = ?", (finding_id,))
+    assert (row["status"], row["decided_by"]) == ("approved", "tch_jean")
+    assert row["statement"] != "Results stayed low for three terms."
+    with pytest.raises(ValueError, match="Unknown finding"):
+        review.decide_finding("fnd_missing", "approved", "tch_jean", db_path=db_path)

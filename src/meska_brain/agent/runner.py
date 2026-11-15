@@ -11,6 +11,7 @@ import asyncio
 import json
 import threading
 import traceback
+from datetime import datetime
 from pathlib import Path
 
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
@@ -118,7 +119,6 @@ def _open_run_for(learner_id: str) -> dict | None:
     """A run for this learner that is still running or waiting for a teacher.
     Two runs at once would both propose the same findings. A run left 'running' by a
     process that died is marked failed so it does not block the learner forever."""
-    from datetime import datetime
     for record in list_runs():
         if record["task"].get("learner_id") != learner_id or record["status"] not in ("running", "waiting_for_teacher"):
             continue

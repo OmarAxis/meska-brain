@@ -146,3 +146,25 @@ def test_grade_comes_from_enrolment_when_the_document_gives_none():
     assert workflow._grade_in(learner, 2021) == 3
     assert workflow._grade_in({"grade_now": 6}, 2025) == 6
     assert workflow._grade_in({}, 2025) is None
+
+
+def test_load_learner_takes_the_current_grade_from_the_latest_record():
+    """The learner row has no current grade. Without one, the model is offered every topic in the pack."""
+    import asyncio
+
+    class Hub:
+        def __init__(self, items):
+            self.items = items
+
+        async def call(self, tool, **kwargs):
+            assert tool == "get_learner_timeline"
+            periods = [{"period": "2025-T1", "items": self.items}] if self.items else []
+            return {"learner": {"alias": "Learner A-17", "start_grade": 3}, "periods": periods}
+
+    for items, expected in (([{"grade": 6}], 6), ([], 3), ([{"grade": 0}], 3)):
+        workflow.RESOURCES["run_test"] = {"hub": Hub(items), "llm": None, "usage": None}
+        try:
+            out = asyncio.run(workflow.load_learner({"run_id": "run_test", "learner_id": "lrn_x"}))
+        finally:
+            workflow.RESOURCES.pop("run_test")
+        assert out["learner"]["grade_now"] == expected

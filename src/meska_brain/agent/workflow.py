@@ -102,6 +102,10 @@ async def load_learner(state: RunState) -> dict:
     hub, _, _ = _res(state)
     timeline = await hub.call("get_learner_timeline", learner_id=state["learner_id"], limit=1)
     learner = timeline["learner"]
+    # The grade the learner is in now is the grade of their latest record. It limits the list of
+    # topics the model may file a row under to ones the learner could have met.
+    latest = [item for period in timeline["periods"] for item in period["items"]]
+    learner["grade_now"] = (latest[-1]["grade"] if latest else None) or learner.get("start_grade")
     return {"learner": learner, **_step("load_learner", f"Loaded {learner.get('alias', state['learner_id'])}.")}
 
 

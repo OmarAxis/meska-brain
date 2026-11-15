@@ -38,7 +38,7 @@ Who does what:
 | `src/meska_brain/web/` | Teacher web app (FastAPI and one HTML file) |
 | `src/meska_brain/synth.py` | Synthetic cohort and sample documents |
 | `src/meska_brain/evals.py` | The evaluation set that writes `EVALS.md` |
-| `tests/` | 164 tests, no model needed |
+| `tests/` | 171 tests, no model needed |
 
 ## Commands
 

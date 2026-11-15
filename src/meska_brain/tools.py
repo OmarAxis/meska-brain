@@ -17,6 +17,7 @@ AUDIENCES = ("teacher_handover", "guardian")
 FINDING_STATUSES = ("proposed", "approved", "edited", "rejected")
 SUMMARY_STATUSES = ("draft", "approved", "rejected")
 MIN_PATTERN_PERIODS = 3
+MAX_TIMELINE_ROWS = 1000
 
 
 def _learner(conn, learner_id: str) -> dict:
@@ -37,27 +38,40 @@ def _check_text(text: str, what: str) -> None:
         raise ValueError(f"The {what} was rejected: " + " | ".join(problems))
 
 
+def learner_rows(conn) -> list[dict]:
+    """Every learner with the grade of their latest evidence. Shared with the web app, which
+    lists learners for a teacher without writing an agent row to the audit log."""
+    found = db.rows(conn, """
+        SELECT l.id AS learner_id, l.alias, l.home_language, l.start_grade,
+               MAX(e.grade) AS latest_grade, COUNT(e.id) AS evidence_count
+        FROM learners l LEFT JOIN evidence e ON e.learner_id = l.id AND e.status != 'retracted'
+        GROUP BY l.id ORDER BY l.alias COLLATE NOCASE, l.id""")
+    return [{"learner_id": r["learner_id"], "alias": r["alias"],
+             "grade_now": r["latest_grade"] or r["start_grade"],
+             "home_language": r["home_language"], "evidence_count": r["evidence_count"]} for r in found]
+
+
+def check_min_periods(min_periods: int) -> None:
+    """The evidence bar cannot be lowered by any caller: fewer than 3 terms is not a pattern."""
+    if min_periods < MIN_PATTERN_PERIODS:
+        raise ValueError(f"A pattern needs at least {MIN_PATTERN_PERIODS} terms of data.")
+
+
 # ---------------------------------------------------------------- read tools
 
 @audited("list_learners")
 def list_learners(*, db_path=None) -> dict:
     """Every learner with an alias, current grade, home language and evidence count."""
     with db.connect(db_path) as conn:
-        found = db.rows(conn, """
-            SELECT l.id AS learner_id, l.alias, l.home_language, l.start_grade,
-                   MAX(e.grade) AS latest_grade, COUNT(e.id) AS evidence_count
-            FROM learners l LEFT JOIN evidence e ON e.learner_id = l.id AND e.status != 'retracted'
-            GROUP BY l.id ORDER BY l.alias""")
-    return {"learners": [{"learner_id": r["learner_id"], "alias": r["alias"],
-                          "grade_now": r["latest_grade"] or r["start_grade"],
-                          "home_language": r["home_language"], "evidence_count": r["evidence_count"]}
-                         for r in found]}
+        return {"learners": learner_rows(conn)}
 
 
 @audited("get_learner_timeline")
 def get_learner_timeline(*, learner_id: str, since_year: int | None = None, concept_id: str | None = None,
                          limit: int = 200, db_path=None) -> dict:
     """The learner's most recent evidence (up to `limit` rows), grouped by period, oldest first."""
+    if not 1 <= limit <= MAX_TIMELINE_ROWS:
+        raise ValueError(f"limit must be between 1 and {MAX_TIMELINE_ROWS}, got {limit}.")
     sql = "SELECT * FROM evidence WHERE learner_id = ? AND status != 'retracted'"
     params: list = [learner_id]
     if since_year is not None:
@@ -87,8 +101,7 @@ def get_learner_timeline(*, learner_id: str, since_year: int | None = None, conc
 def find_patterns(*, learner_id: str, min_periods: int = 3, db_path=None) -> dict:
     """Strengths and struggles that held for several periods. See graph.find_patterns.
     The evidence bar cannot be lowered: fewer than 3 periods is refused."""
-    if min_periods < MIN_PATTERN_PERIODS:
-        raise ValueError("A pattern needs at least 3 terms of data.")
+    check_min_periods(min_periods)
     return graph.find_patterns(learner_id, min_periods, db_path=db_path)
 
 
