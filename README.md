@@ -49,6 +49,8 @@ The learner **Profile** also draws a knowledge graph of everything connected to 
 
 Under **My teaching**, a teacher describes how often they use each teaching approach. On a learner's profile, the card **You and this learner** then puts two facts side by side: what was followed by gains for this learner, and how often this teacher says they teach that way. It does not score or rank teachers, and the answers are the teacher's own. Each finding in the review queue also carries **a possible next step**, worded by fixed rules, for the teacher to take or ignore.
 
+**More than one subject.** There are four subject packs: `generic-maths`, `generic-science` (life science, materials, physics, earth and space), `generic-language` and `generic-technology`. `generic-school` includes all four and adds links between subjects, for example a physics topic that needs a maths topic first, so a difficulty can be traced across subjects. `uv run meska seed --pack generic-school` generates the cohort on all four; it adds one learner (R-08) whose difficulty with maths word problems traces back to reading. The default seed, and the evaluation, stay on mathematics only, so the results in `EVALS.md` are not affected. The science, language and technology packs were written for this project and have not been reviewed by subject teachers.
+
 For a presentation, `uv run meska story` builds a ready state on a freshly seeded database: the engine's findings for three learners, some approved and some waiting. No model is used, the wording comes from fixed templates, and every step is logged with the actor `demo-setup` so it cannot be mistaken for the agent's work or a real teacher's decision. `uv run meska seed` wipes it.
 
 ## The same flow from the command line

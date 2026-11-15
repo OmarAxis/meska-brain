@@ -15,7 +15,7 @@ from .curriculum import load_pack
 
 ACTOR = "demo-setup"
 # alias suffix -> finding kinds to approve during setup; everything else stays waiting.
-PLAN: dict[str, tuple[str, ...]] = {"A-17": ("strength",), "B-04": (), "C-31": ("strength",)}
+PLAN: dict[str, tuple[str, ...]] = {"A-17": ("strength",), "B-04": (), "C-31": ("strength",), "R-08": ()}
 MAX_TRACES = 4
 
 

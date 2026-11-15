@@ -39,13 +39,16 @@ class Pack:
     concepts: dict[str, Concept]
     graph: nx.DiGraph  # edge prerequisite -> concept
     skill_kinds: dict[str, str] = field(default_factory=dict)  # skill id -> "thinking" | "disposition"
+    subjects: dict[str, dict[str, str]] = field(default_factory=dict)  # subject id -> labels
+    strand_subject: dict[str, str] = field(default_factory=dict)       # strand id -> subject id
 
     def label(self, any_id: str, lang: str = "en") -> str:
         """Label of a concept, strand, skill or approach; falls back to English, then the id."""
         if any_id in self.concepts:
             labels = self.concepts[any_id].label
         else:
-            labels = self.strands.get(any_id) or self.skills.get(any_id) or self.approaches.get(any_id) or {}
+            labels = (self.strands.get(any_id) or self.skills.get(any_id) or self.approaches.get(any_id)
+                      or self.subjects.get(any_id) or {})
         return labels.get(lang) or labels.get("en") or any_id
 
     def prerequisites(self, concept_id: str) -> list[str]:
@@ -80,11 +83,40 @@ def load_pack(pack_id: str | None = None, packs_dir: Path | None = None) -> Pack
     return _CACHE[key]
 
 
-def _read_pack(path: Path) -> Pack:
-    """Parse pack.yaml into a Pack, then check it."""
+def read_pack_data(path: Path) -> dict:
+    """Read pack.yaml as plain data. A pack may `include` other packs (one per subject) and add
+    cross-subject `links`; the result is one merged pack with every strand tagged with its subject."""
     if not path.exists():
         raise ValueError(f"Curriculum pack not found: {path}")
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    own_subject = {"id": data["subject"], "label": data.get("subject_label") or {"en": str(data["subject"]).title()}}
+    for strand in data.get("strands") or []:
+        strand.setdefault("subject", own_subject["id"])
+    data["subjects"] = [own_subject] if data.get("strands") else []
+    for key in ("strands", "skills", "approaches", "concepts"):
+        data[key] = list(data.get(key) or [])
+    for included in data.get("includes") or []:
+        part = read_pack_data(path.parent.parent / included / "pack.yaml")
+        data["subjects"] += [s for s in part["subjects"] if s["id"] not in {x["id"] for x in data["subjects"]}]
+        for key in ("strands", "skills", "approaches"):
+            have = {item["id"] for item in data[key]}
+            data[key] += [item for item in part[key] if item["id"] not in have]
+        clash = {c["id"] for c in data["concepts"]} & {c["id"] for c in part["concepts"]}
+        if clash:
+            raise ValueError(f"Pack '{data['id']}': concept ids appear in more than one included pack: {sorted(clash)}")
+        data["concepts"] += part["concepts"]
+    by_id = {c["id"]: c for c in data["concepts"]}
+    for link in data.get("links") or []:
+        if link["concept"] not in by_id:
+            raise ValueError(f"Pack '{data['id']}': link names unknown concept '{link['concept']}'")
+        target = by_id[link["concept"]]
+        target["requires"] = list(dict.fromkeys(list(target.get("requires") or []) + list(link["requires"])))
+    return data
+
+
+def _read_pack(path: Path) -> Pack:
+    """Parse pack.yaml into a Pack, then check it."""
+    data = read_pack_data(path)
     concepts = {c["id"]: _concept(c) for c in data.get("concepts", [])}
     pack = Pack(
         id=data["id"],
@@ -97,6 +129,8 @@ def _read_pack(path: Path) -> Pack:
         concepts=concepts,
         graph=_build_graph(concepts),
         skill_kinds={s["id"]: s.get("kind", "thinking") for s in data.get("skills", [])},
+        subjects={s["id"]: dict(s["label"]) for s in data["subjects"]},
+        strand_subject={s["id"]: s["subject"] for s in data.get("strands", [])},
     )
     _validate(pack)
     return pack

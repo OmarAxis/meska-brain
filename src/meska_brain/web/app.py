@@ -123,6 +123,11 @@ def learner_graph(learner_id: str) -> dict:
     data = graph.learner_graph(learner_id)
     # The page recolours nodes while replaying, so it needs the same cut-offs the engine uses.
     data["thresholds"] = {"strong_above": graph.STRENGTH_ABOVE, "gap_below": graph.STRUGGLE_BELOW}
+    with db.connect() as conn:
+        row = db.one(conn, "SELECT pack_id FROM learners WHERE id = ?", (learner_id,))
+    pack = load_pack(row["pack_id"])
+    data["subjects"] = [{"id": s, "label": pack.label(s)} for s in pack.subjects]
+    data["strand_subject"] = dict(pack.strand_subject)
     return data
 
 

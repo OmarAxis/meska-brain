@@ -276,6 +276,7 @@ svg.chart { width: 100%; height: auto; display: block; }
 .sparks { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
 .spark { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px 6px; background: #fff; }
 .spark-title { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+.spark-subject, .heat-subject { display: block; font-size: 10.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 
 table.heat { font-size: 13px; }
 table.heat th, table.heat td { border-bottom: none; padding: 3px 4px; background: transparent; }
@@ -634,9 +635,10 @@ function heatColour(mean) {
   return { bg: HEAT[i], ink: i >= 3 ? "#FFFFFF" : "#0A0A0A" };
 }
 function heatGrid(cov) {
+  const multi = new Set(cov.strands.map((st) => st.subject)).size > 1;
   const table = h("table", { class: "heat" },
     h("thead", {}, h("tr", {}, h("th", { scope: "col", text: "Strand" }), cov.grades.map((g) => h("th", { scope: "col", text: "Grade " + g })))),
-    h("tbody", {}, cov.strands.map((st) => h("tr", {}, h("th", { scope: "row", text: st.label }),
+    h("tbody", {}, cov.strands.map((st) => h("tr", {}, h("th", { scope: "row" }, multi ? h("span", { class: "heat-subject", text: st.subject }) : null, h("span", { text: st.label })),
       st.cells.map((c) => {
         if (c.mean === null) return h("td", {}, h("span", { class: "heat-cell none", text: "no records" }));
         const col = heatColour(c.mean);
@@ -669,7 +671,8 @@ function spark(strand, periods, th) {
   }
   const last = pts[pts.length - 1];
   svg.append(s("text", { class: "endlabel", x: Math.min(W - 4, x(last.period) + 9), y: y(last.mean) + 4, text: pct(last.mean) }));
-  return h("div", { class: "spark" }, h("div", { class: "spark-title", text: strand.label }), svg);
+  return h("div", { class: "spark" }, strand.subject ? h("div", { class: "spark-subject", text: strand.subject }) : null,
+    h("div", { class: "spark-title", text: strand.label }), svg);
 }
 
 // ---------------------------------------------------------------- class overview
@@ -775,6 +778,7 @@ async function viewProfile(root) {
     h("section", { class: "card" }, h("div", { class: "card-head" }, h("h3", { text: "Thinking skills on record" })),
       h("p", { class: "small muted", text: "Average result on items that call for each skill. A description of results so far, not a label for the child." }),
       mind.skills.length ? skillBars(mind.skills) : h("p", { class: "muted", text: "No skill-tagged records yet." }),
+      (mind.subjects || []).length > 1 ? [h("h3", { class: "section-title", text: "By subject" }), skillBars(mind.subjects)] : null,
       h("h3", { class: "section-title", text: "By curriculum strand" }), skillBars(mind.strands))));
 
   // the long view
@@ -822,13 +826,15 @@ async function viewProfile(root) {
 }
 
 // ---------------------------------------------------------------- knowledge graph and teaching fit
-const NODE_COLOUR = { strand: "#2871F4", skill: "#0E8F7E", teacher: "#8A4FD6", approach: "#C2417A" };
-const NODE_WORD = { strand: "Curriculum strand", skill: "Thinking skill", teacher: "Teacher", approach: "Teaching approach" };
+const NODE_COLOUR = { subject: "#2871F4", strand: "#2871F4", skill: "#0E8F7E", teacher: "#8A4FD6", approach: "#C2417A" };
+const NODE_WORD = { subject: "Subject", strand: "Curriculum strand", skill: "Thinking skill", teacher: "Teacher", approach: "Teaching approach" };
 
 function knowledgeGraph(m) {
   const W = 900, H = 640, cx = W / 2, cy = H / 2, RX = 250, RY = 240;
+  const many = (m.subjects || []).length > 1;
   const nodes = [
-    ...m.strands.map((x) => ({ type: "strand", label: x.label, sub: pct(x.mean), weight: x.n, tip: x.label + ": average " + pct(x.mean) + " over " + x.n + " scored items" })),
+    ...(many ? m.subjects : []).map((x) => ({ type: "subject", label: x.label, sub: pct(x.mean), weight: x.n, tip: x.label + ": average " + pct(x.mean) + " over " + x.n + " scored items" })),
+    ...(many ? [] : m.strands).map((x) => ({ type: "strand", label: x.label, sub: pct(x.mean), weight: x.n, tip: x.label + ": average " + pct(x.mean) + " over " + x.n + " scored items" })),
     ...m.skills.map((x) => ({ type: "skill", label: x.label, sub: pct(x.mean), weight: x.n, tip: x.label + ": average " + pct(x.mean) + " over " + x.n + " scored items" })),
     ...m.approaches.map((x) => ({ type: "approach", label: x.label, sub: x.improved + " of " + (x.improved + x.not_improved), weight: (x.improved + x.not_improved) * 6, tip: x.label + ": scores rose afterwards " + x.improved + " of " + (x.improved + x.not_improved) + " times" })),
     ...m.teachers.map((x) => ({ type: "teacher", label: x.name, sub: x.units + " units", weight: x.units * 6, tip: x.name + " taught this learner " + x.units + " units" })),
@@ -844,7 +850,7 @@ function knowledgeGraph(m) {
       d: "M" + cx + "," + cy + " Q" + (cx + Math.cos(a) * RX * 0.45).toFixed(1) + "," + (cy + Math.sin(a) * RY * 0.2).toFixed(1) + " " + x.toFixed(1) + "," + y.toFixed(1) }));
     const g = s("g", { class: "kg-node" });
     g.append(s("circle", { cx: x, cy: y, r, fill: NODE_COLOUR[n.type] }));
-    const side = Math.abs(Math.cos(a)) > 0.3, right = Math.cos(a) >= 0, below = Math.sin(a) > 0;
+    const side = Math.abs(Math.cos(a)) > 0.12, right = Math.cos(a) >= 0, below = Math.sin(a) > 0;
     const lx = side ? x + (right ? r + 8 : -(r + 8)) : x, anchor = side ? (right ? "start" : "end") : "middle";
     const ly = side ? y - 1 : (below ? y + r + 16 : y - r - 20);
     g.append(s("text", { class: "kg-label", x: lx, y: ly, "text-anchor": anchor, text: n.label }),
@@ -992,7 +998,14 @@ function stateFor(g, cid) {
 async function viewMap(root) {
   if (!state.learnerId) { root.append(h("p", { class: "empty", text: "No learners yet." })); return; }
   root.append(h("p", { class: "muted", text: "Loading the map..." }));
-  const g = await getGraph(state.learnerId);
+  let g = await getGraph(state.learnerId);
+  const subjects = g.subjects || [];
+  if (!state.subject || (state.subject !== "all" && !subjects.some((x) => x.id === state.subject))) state.subject = "all";
+  if (subjects.length > 1 && state.subject !== "all") {
+    const keep = (n) => n.type !== "concept" ? (n.type !== "strand" || g.strand_subject[n.id] === state.subject) : g.strand_subject[n.strand] === state.subject;
+    const nodes = g.nodes.filter(keep), ids = new Set(nodes.map((n) => n.id));
+    g = Object.assign({}, g, { nodes, edges: g.edges.filter((e) => ids.has(e.source) && ids.has(e.target)) });
+  }
   g.byId = Object.fromEntries(g.nodes.map((n) => [n.id, n]));
   const lastIdx = g.periods.length - 1;
   state.periodIdx = Math.max(0, lastIdx);
@@ -1124,6 +1137,9 @@ async function viewMap(root) {
   root.append(
     h("div", { class: "map-top" },
       h("div", {}, h("h2", { text: g.learner.alias }),
+        subjects.length > 1 ? h("div", { class: "row", style: "margin:8px 0" }, h("label", { for: "subject-pick", text: "Subject" }),
+          (() => { const pick = h("select", { id: "subject-pick" }, [{ id: "all", label: "All subjects" }, ...subjects].map((x) => h("option", { value: x.id, selected: x.id === state.subject, text: x.label })));
+            pick.addEventListener("change", () => { state.subject = pick.value; state.sel = null; state.trace = null; show("learner/map"); }); return pick; })()) : null,
         h("div", { class: "small muted", text: "Home language: " + langName(g.learner.home_language) + ". Columns are grades; rows are strands; a line means “needs this first”." })),
       legend),
     h("div", { class: "replay card" },

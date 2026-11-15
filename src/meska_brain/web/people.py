@@ -64,7 +64,14 @@ def learner_mind(learner_id: str, db_path=None) -> dict[str, Any]:
         if e["skill_id"]:
             by_skill[e["skill_id"]].append(e["score"])
     strands = [{"id": sid, "label": pack.label(sid), "mean": _mean(by_strand[sid]), "n": len(by_strand[sid]),
-                "state": _state(_mean(by_strand[sid]))} for sid in pack.strands if by_strand.get(sid)]
+                "subject": pack.strand_subject.get(sid), "state": _state(_mean(by_strand[sid]))}
+               for sid in pack.strands if by_strand.get(sid)]
+    subjects = []
+    for subject_id in pack.subjects:
+        scores = [x for sid, values in by_strand.items() if pack.strand_subject.get(sid) == subject_id for x in values]
+        if scores:
+            subjects.append({"id": subject_id, "label": pack.label(subject_id), "mean": _mean(scores), "n": len(scores),
+                             "state": _state(_mean(scores))})
     # Thinking skills only. A disposition (such as persistence) is never summarised as a trait of a child.
     skills = [{"id": kid, "label": pack.label(kid), "mean": _mean(by_skill[kid]), "n": len(by_skill[kid]),
                "state": _state(_mean(by_skill[kid]))}
@@ -76,7 +83,8 @@ def learner_mind(learner_id: str, db_path=None) -> dict[str, Any]:
     worked = graph.what_worked(learner_id, db_path=db_path)
     approaches = [{"id": a["approach_id"], "label": a["label"], "improved": a["improved"],
                    "not_improved": a["not_improved"]} for a in worked.get("approaches", [])]
-    return {"learner": {"learner_id": learner_id, "alias": learner["alias"]}, "strands": strands, "skills": skills,
+    return {"learner": {"learner_id": learner_id, "alias": learner["alias"]}, "subjects": subjects,
+            "strands": strands, "skills": skills,
             "teachers": sorted(teachers.values(), key=lambda t: t["name"]), "approaches": approaches,
             "thresholds": {"strong_above": graph.STRENGTH_ABOVE, "gap_below": graph.STRUGGLE_BELOW}}
 

@@ -5,6 +5,7 @@
 id: generic-maths
 name: School mathematics, grades 1 to 8
 subject: maths
+subject_label: {en: Mathematics}
 grades: [1, 8]
 languages: [en]
 

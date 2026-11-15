@@ -66,7 +66,7 @@ def overview(db_path=None) -> dict[str, Any]:
             approved[s["learner_id"]] += 1
 
     grades = sorted({g for (_, g) in cell})
-    strands = [{"id": sid, "label": pack.label(sid),
+    strands = [{"id": sid, "label": pack.label(sid), "subject": pack.label(pack.strand_subject.get(sid, "")),
                 "cells": [{"grade": g, "mean": _mean(cell.get((sid, g), [])), "n": len(cell.get((sid, g), []))}
                           for g in grades]}
                for sid in (pack.strands if pack else {}) if any((sid, g) in cell for g in grades)]
@@ -91,7 +91,8 @@ def overview(db_path=None) -> dict[str, Any]:
         "roster": roster,
         "calls_by_tool": by_tool,
         "recent_calls": recent,
-        "curriculum": {"id": pack.id, "name": pack.name} if pack else None,
+        "curriculum": {"id": pack.id, "name": pack.name,
+                       "subjects": [pack.label(s) for s in pack.subjects]} if pack else None,
     }
 
 
@@ -135,7 +136,8 @@ def learner_dashboard(learner_id: str, db_path=None) -> dict[str, Any]:
         points = [{"period": db.period_label(p), "mean": _mean(scores[(sid, p)]), "n": len(scores[(sid, p)])}
                   for p in periods if (sid, p) in scores]
         if points:
-            strands.append({"id": sid, "label": pack.label(sid), "points": points})
+            strands.append({"id": sid, "label": pack.label(sid),
+                            "subject": pack.label(pack.strand_subject.get(sid, "")), "points": points})
 
     taught: dict[int, list[dict]] = defaultdict(list)
     for u in units:

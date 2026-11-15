@@ -47,6 +47,8 @@ uv sync --extra dev          # install
 uv run meska demo            # seed if needed, open the teacher app at http://127.0.0.1:8765
 uv run pytest -q             # tests (no model needed)
 uv run ruff check src tests  # lint
+uv run meska seed --pack generic-school   # all four subjects (default seed is maths only)
+uv run meska story           # a ready state for presenting, no model used
 uv run meska learners        # list learners
 uv run meska run A-17 --file data/inbox/quiz_sheet_A17_2025-T1.md
 uv run meska pending         # what is waiting for a teacher

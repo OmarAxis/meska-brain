@@ -42,10 +42,11 @@ def _resolve_learner(text: str) -> str:
 
 
 @app.command()
-def seed(seed: int = 7, learners: int = 12, years: int = 4) -> None:
+def seed(seed: int = 7, learners: int = 12, years: int = 4,
+         pack: str = typer.Option(None, help="Curriculum pack id, e.g. generic-school for all subjects.")) -> None:
     """Regenerate the synthetic cohort. Wipes existing data."""
     from . import synth
-    console.print_json(json.dumps(synth.generate(seed=seed, n_learners=learners, years=years), default=str))
+    console.print_json(json.dumps(synth.generate(seed=seed, n_learners=learners, years=years, pack_id=pack), default=str))
 
 
 @app.command()

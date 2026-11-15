@@ -109,9 +109,9 @@ class _Ids:
 
 
 def _load_pack(pack_id: str) -> dict[str, Any]:
-    path = get_settings().packs_dir / pack_id / "pack.yaml"
-    with open(path, encoding="utf-8") as fh:
-        return yaml.safe_load(fh)
+    from .curriculum import read_pack_data
+
+    return read_pack_data(get_settings().packs_dir / pack_id / "pack.yaml")
 
 
 def _topo_order(concepts: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -181,6 +181,10 @@ def _build_specs(rng: random.Random, n_learners: int, years: int, by_id: dict[st
         dict(alias="Learner F-12", case="no_pattern", start_grade=4, start_year=BASE_YEAR,
              lang="en", ability=0.66, tilt_sd=0.0),
     ]
+    if "literal-comprehension" in by_id and "problem-solving-multistep" in by_id:
+        # All-subjects pack only: a reading gap in grade 3 that later shows up in maths word problems.
+        planted.append(dict(alias="Learner R-08", case="cross_subject", start_grade=3, start_year=BASE_YEAR,
+                            lang="sw", ability=0.74, tilt_sd=0.0))
     specs = [dict(p, mild=False) for p in planted]
     used = {s["alias"] for s in specs}
     letters = "GHJKLMNPRSTUVWXYZ"
@@ -330,6 +334,8 @@ def generate(
                     val = max(val, 0.92)
             elif case == "unknown_root" and c["id"] == "division-basic":
                 val = 0.30
+            elif case == "cross_subject" and c["id"] == "literal-comprehension":
+                val = 0.29
             elif case == "data_pattern_strength":
                 if c["strand"] == "data" or {"working-with-data", "pattern-finding"} & set(c["skills"]):
                     val = max(val, 0.90)
@@ -484,7 +490,7 @@ def generate(
     db.init_db(db_path)
     with db.connect(db_path) as conn:
         for table in ("approvals", "summaries", "findings", "audit_log", "evidence",
-                      "teaching_units", "learners", "teachers"):
+                      "teaching_units", "learners", "teacher_profiles", "teachers"):
             conn.execute(f"DELETE FROM {table}")
         conn.executemany(
             "INSERT INTO teachers (id, name, subjects) VALUES (?, ?, ?)",
