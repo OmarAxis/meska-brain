@@ -585,6 +585,11 @@ def _numbers_not_in(text: str, source: str) -> list[str]:
     return sorted(set(re.findall(r"\d+", text.translate(_DIGITS))) - allowed)
 
 
+def _speaks_to_wrong_reader(text: str, audience: str) -> bool:
+    """A handover note is read by the next teacher. Small models often write it to a parent instead."""
+    return audience == "teacher_handover" and bool(re.search(r"\byour (child|son|daughter)\b", text, re.IGNORECASE))
+
+
 async def draft_summaries(state: RunState) -> dict:
     """Only approved findings reach here. The model words the notes; the server refuses any
     summary that cites an unapproved finding or fails the guard."""
@@ -618,6 +623,8 @@ async def draft_summaries(state: RunState) -> dict:
             problems = guard.check_statement(text) if text else ["empty"]
             if not problems and not looks_like(text, language):
                 problems = [f"the note is not written in {language_name(language)}"]
+            if not problems and _speaks_to_wrong_reader(text, audience):
+                problems = ["the note speaks to a parent ('your child'); it must speak to the next teacher about the learner"]
             if not problems and (extra := _numbers_not_in(text, source_text)):
                 problems = [f"the note contains numbers that are not in the approved findings: {', '.join(extra)}"]
             if not problems:

@@ -120,3 +120,10 @@ def test_what_worked_needs_more_wins_than_losses():
     assert workflow._candidates({**base, "what_worked": {"approaches": [approach(3, 0)]}}, _pack())[0][0]["kind"] == "what_worked"
     assert workflow._candidates({**base, "what_worked": {"approaches": [approach(1, 0)]}}, _pack())[0] == []
     assert workflow._candidates({**base, "what_worked": {"approaches": [approach(2, 4)]}}, _pack())[0] == []
+
+
+def test_a_handover_note_must_not_be_written_to_a_parent():
+    to_parent = "Your child demonstrates strong potential but struggles with ratio comparisons."
+    assert workflow._speaks_to_wrong_reader(to_parent, "teacher_handover")
+    assert not workflow._speaks_to_wrong_reader(to_parent, "guardian")
+    assert not workflow._speaks_to_wrong_reader("This learner's ratio results have been low.", "teacher_handover")
