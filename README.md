@@ -45,6 +45,10 @@ It is general for school grades. The demo pack is school mathematics, grades 1 t
 
 Approved findings and notes for a learner are listed under **Approved**, with who approved each one.
 
+The learner **Profile** also draws a knowledge graph of everything connected to that learner (curriculum strands, thinking skills, teachers, teaching approaches) and lists results by thinking skill. These describe results on record. They are not labels: the page never calls a learner fast, slow, or a type.
+
+Under **My teaching**, a teacher describes how often they use each teaching approach. On a learner's profile, the card **You and this learner** then puts two facts side by side: what was followed by gains for this learner, and how often this teacher says they teach that way. It does not score or rank teachers, and the answers are the teacher's own. Each finding in the review queue also carries **a possible next step**, worded by fixed rules, for the teacher to take or ignore.
+
 For a presentation, `uv run meska story` builds a ready state on a freshly seeded database: the engine's findings for three learners, some approved and some waiting. No model is used, the wording comes from fixed templates, and every step is logged with the actor `demo-setup` so it cannot be mistaken for the agent's work or a real teacher's decision. `uv run meska seed` wipes it.
 
 ## The same flow from the command line

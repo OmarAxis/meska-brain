@@ -22,6 +22,13 @@ CREATE TABLE IF NOT EXISTS teachers (
   subjects   TEXT NOT NULL DEFAULT '[]'      -- JSON list
 );
 
+-- A teacher's own description of how they teach. Never a score.
+CREATE TABLE IF NOT EXISTS teacher_profiles (
+  teacher_id TEXT PRIMARY KEY REFERENCES teachers(id),
+  answers    TEXT NOT NULL,                 -- JSON: the teacher's own answers
+  updated_at TEXT NOT NULL
+);
+
 -- Teacher data points: what was taught, when, and with which approach.
 CREATE TABLE IF NOT EXISTS teaching_units (
   id          TEXT PRIMARY KEY,              -- unt_xxxx

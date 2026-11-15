@@ -291,7 +291,7 @@ table.heat tbody th { text-transform: none; letter-spacing: 0; font-size: 13px; 
 table.heat tbody tr:hover td { background: transparent; }
 
 .hbars { display: grid; gap: 8px; margin-top: 8px; }
-.hbar { display: grid; grid-template-columns: minmax(110px, 34%) minmax(0, 1fr) auto; gap: 10px; align-items: center; font-size: 13px; }
+.hbar { display: grid; grid-template-columns: minmax(120px, 42%) minmax(0, 1fr) auto; gap: 10px; align-items: center; font-size: 13px; }
 .hbar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hbar-track { height: 10px; border-radius: 5px; background: #EEF2F8; overflow: hidden; display: flex; gap: 2px; }
 .hbar-fill { display: block; height: 100%; background: var(--blue); border-radius: 5px; }
@@ -325,6 +325,24 @@ button.linkish:hover { text-decoration: underline; background: transparent; }
 .term ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 13px; }
 .term li { display: grid; line-height: 1.3; }
 
+.kg-edge { fill: none; opacity: .35; stroke-linecap: round; }
+.kg-node circle { stroke: #fff; stroke-width: 2.5; }
+.kg-node:hover circle { stroke: var(--ink); }
+.kg-label { font-size: 13px; font-weight: 600; fill: var(--ink); }
+.kg-sub { font-size: 11.5px; fill: var(--muted); }
+.kg-centre { fill: var(--navy); stroke: #fff; stroke-width: 4; }
+.kg-centre-text { fill: #fff; font-size: 20px; font-weight: 700; }
+.kg-legend { margin-bottom: 4px; }
+.kg-key { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+.nextstep { margin: 10px 0; padding: 10px 14px; border-radius: var(--radius-sm); background: var(--blue-soft); display: grid; gap: 2px; }
+.nextstep strong { font-size: 12px; letter-spacing: .04em; text-transform: uppercase; color: #0B2E7A; }
+.qlist { display: grid; gap: 4px; margin: 8px 0 16px; }
+.qrow { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 16px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.seg { display: inline-flex; gap: 3px; padding: 3px; background: #E9EDF5; border-radius: 12px; }
+.seg button { border: none; background: transparent; min-height: 32px; padding: 4px 14px; border-radius: 9px; color: var(--muted); }
+.seg button[aria-checked=true] { background: var(--accent); color: #fff; font-weight: 600; }
+.qfields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+.qfields input, .card textarea { width: 100%; }
 @media (max-width: 1100px) { .grid2, .grid2.wide-left { grid-template-columns: 1fr; } }
 @media (max-width: 800px) {
   .app { grid-template-columns: 1fr; }
@@ -484,6 +502,7 @@ function db_period(r) { return r.year + "-T" + r.term; }
 const NAV = [
   ["overview", "Class overview", "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"],
   ["learner", "Learners", "M12 12a4 4 0 100-8 4 4 0 000 8zM4 20c0-4 4-6 8-6s8 2 8 6"],
+  ["teaching", "My teaching", "M5 4h11a3 3 0 013 3v13H8a3 3 0 01-3-3zM5 17a3 3 0 013-3h11"],
   ["review", "Review queue", "M10 6h10M10 12h10M10 18h10M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"],
   ["agent", "Agent", "M12 3v4M12 17v4M3 12h4M17 12h4M6 6l3 3M15 15l3 3M18 6l-3 3M9 15l-3 3"],
   ["audit", "Audit log", "M6 3h9l4 4v14H6zM9 12h7M9 16h7M9 8h3"],
@@ -555,7 +574,7 @@ function show(view) {
   root.className = state.view === "learner" ? "learner-view" : "";
   const fn = state.view === "learner"
     ? { profile: viewProfile, map: viewMap, patterns: viewPatterns, approved: viewApproved }[state.sub]
-    : { overview: viewOverview, review: viewReview, agent: viewAgent, audit: viewAudit }[state.view];
+    : { overview: viewOverview, teaching: viewTeaching, review: viewReview, agent: viewAgent, audit: viewAudit }[state.view];
   Promise.resolve(fn(root)).catch((e) => root.append(h("p", { class: "err", role: "alert", text: e.message })));
   window.scrollTo(0, 0);
 }
@@ -733,7 +752,7 @@ async function viewProfile(root) {
   root.append(h("p", { class: "muted", text: "Loading..." }));
   const lid = encodeURIComponent(state.learnerId);
   await getGraph(state.learnerId).catch(() => null);
-  const [d, pat, ww] = await Promise.all([api("/api/learners/" + lid + "/dashboard"), api("/api/learners/" + lid + "/patterns"), api("/api/learners/" + lid + "/what-worked")]);
+  const [d, pat, ww, mind, fitEl] = await Promise.all([api("/api/learners/" + lid + "/dashboard"), api("/api/learners/" + lid + "/patterns"), api("/api/learners/" + lid + "/what-worked"), api("/api/learners/" + lid + "/mind"), fitCard(lid)]);
   const t = d.totals;
   clear(root);
   root.append(h("div", { class: "pagehead" },
@@ -747,6 +766,16 @@ async function viewProfile(root) {
     tile("Days absent on record", num(t.days_absent), "across all terms"),
     tile("Waiting for a teacher", num(t.waiting), t.waiting ? "open the review queue" : "nothing to decide", { accent: t.waiting > 0, onclick: () => show("review") }),
     tile("Approved by teachers", num(t.approved), "findings and notes", { onclick: () => show("learner/approved") })));
+
+  // knowledge graph and thinking skills
+  root.append(h("div", { class: "grid2 wide-left" },
+    h("section", { class: "card" }, h("div", { class: "card-head" }, h("h3", { text: "Knowledge graph: everything connected to this learner" })),
+      h("p", { class: "small muted", text: "Strands and thinking skills show the average result on record. Approaches show how often scores rose afterwards. Bigger means more records. Hover for the numbers." }),
+      knowledgeGraph(mind)),
+    h("section", { class: "card" }, h("div", { class: "card-head" }, h("h3", { text: "Thinking skills on record" })),
+      h("p", { class: "small muted", text: "Average result on items that call for each skill. A description of results so far, not a label for the child." }),
+      mind.skills.length ? skillBars(mind.skills) : h("p", { class: "muted", text: "No skill-tagged records yet." }),
+      h("h3", { class: "section-title", text: "By curriculum strand" }), skillBars(mind.strands))));
 
   // the long view
   const long = h("section", { class: "card" }, h("div", { class: "card-head" }, h("h3", { text: "The long view: results by strand, term by term" })),
@@ -780,7 +809,7 @@ async function viewProfile(root) {
       h("span", { class: "hbar-num", text: "scores rose " + a.improved + " of " + (a.improved + a.not_improved) + " times" })))),
       h("div", { class: "small muted keyline" }, h("span", { class: "key a" }), "scores rose afterwards", h("span", { class: "key b" }), "did not rise"));
   }
-  root.append(helped);
+  root.append(h("div", { class: "grid2" }, helped, fitEl));
 
   // year by year
   const years = h("section", { class: "card" }, h("div", { class: "card-head" }, h("h3", { text: "Year by year" })),
@@ -790,6 +819,117 @@ async function viewProfile(root) {
       h("div", { class: "term-abs" + (term.absent_days >= 10 ? " high" : ""), text: term.absent_days + " days absent" }),
       h("ul", {}, term.taught.map((u) => h("li", {}, h("span", { text: u.concept }), h("span", { class: "small muted", text: u.approach }))))))));
   root.append(years);
+}
+
+// ---------------------------------------------------------------- knowledge graph and teaching fit
+const NODE_COLOUR = { strand: "#2871F4", skill: "#0E8F7E", teacher: "#8A4FD6", approach: "#C2417A" };
+const NODE_WORD = { strand: "Curriculum strand", skill: "Thinking skill", teacher: "Teacher", approach: "Teaching approach" };
+
+function knowledgeGraph(m) {
+  const W = 900, H = 640, cx = W / 2, cy = H / 2, RX = 250, RY = 240;
+  const nodes = [
+    ...m.strands.map((x) => ({ type: "strand", label: x.label, sub: pct(x.mean), weight: x.n, tip: x.label + ": average " + pct(x.mean) + " over " + x.n + " scored items" })),
+    ...m.skills.map((x) => ({ type: "skill", label: x.label, sub: pct(x.mean), weight: x.n, tip: x.label + ": average " + pct(x.mean) + " over " + x.n + " scored items" })),
+    ...m.approaches.map((x) => ({ type: "approach", label: x.label, sub: x.improved + " of " + (x.improved + x.not_improved), weight: (x.improved + x.not_improved) * 6, tip: x.label + ": scores rose afterwards " + x.improved + " of " + (x.improved + x.not_improved) + " times" })),
+    ...m.teachers.map((x) => ({ type: "teacher", label: x.name, sub: x.units + " units", weight: x.units * 6, tip: x.name + " taught this learner " + x.units + " units" })),
+  ];
+  const svg = s("svg", { viewBox: "0 0 " + W + " " + H, class: "chart kg", role: "img", "aria-label": "Knowledge graph for " + m.learner.alias });
+  const edges = s("g", {}), dots = s("g", {});
+  const maxW = Math.max(1, ...nodes.map((n) => n.weight));
+  nodes.forEach((n, i) => {
+    const a = -Math.PI / 2 + (i / nodes.length) * Math.PI * 2;
+    const x = cx + Math.cos(a) * RX, y = cy + Math.sin(a) * RY;
+    const r = 9 + 11 * Math.sqrt(n.weight / maxW);
+    edges.append(s("path", { class: "kg-edge", stroke: NODE_COLOUR[n.type], "stroke-width": 1 + 3 * (n.weight / maxW),
+      d: "M" + cx + "," + cy + " Q" + (cx + Math.cos(a) * RX * 0.45).toFixed(1) + "," + (cy + Math.sin(a) * RY * 0.2).toFixed(1) + " " + x.toFixed(1) + "," + y.toFixed(1) }));
+    const g = s("g", { class: "kg-node" });
+    g.append(s("circle", { cx: x, cy: y, r, fill: NODE_COLOUR[n.type] }));
+    const side = Math.abs(Math.cos(a)) > 0.3, right = Math.cos(a) >= 0, below = Math.sin(a) > 0;
+    const lx = side ? x + (right ? r + 8 : -(r + 8)) : x, anchor = side ? (right ? "start" : "end") : "middle";
+    const ly = side ? y - 1 : (below ? y + r + 16 : y - r - 20);
+    g.append(s("text", { class: "kg-label", x: lx, y: ly, "text-anchor": anchor, text: n.label }),
+      s("text", { class: "kg-sub", x: lx, y: ly + 14, "text-anchor": anchor, text: n.sub }));
+    tip(g, n.tip);
+    dots.append(g);
+  });
+  svg.append(edges, dots,
+    s("circle", { cx, cy, r: 46, class: "kg-centre" }),
+    s("text", { class: "kg-centre-text", x: cx, y: cy + 7, "text-anchor": "middle", text: m.learner.alias.replace("Learner ", "") }));
+  const present = [...new Set(nodes.map((n) => n.type))];
+  const legend = h("ul", { class: "legend kg-legend", "aria-label": "Legend" }, present.map((t) => h("li", {}, h("span", { class: "kg-key", style: "background:" + NODE_COLOUR[t] }), h("span", { text: NODE_WORD[t] }))));
+  return h("div", {}, legend, svg);
+}
+
+function skillBars(items) {
+  return h("div", { class: "hbars" }, items.map((i) => h("div", { class: "hbar" },
+    h("span", { class: "hbar-label", text: i.label }),
+    h("span", { class: "hbar-track" }, h("span", { class: "hbar-fill", style: "width:" + Math.round(i.mean * 100) + "%" })),
+    h("span", { class: "hbar-num", text: pct(i.mean) + " over " + i.n + " items" }))));
+}
+
+async function fitCard(lid) {
+  const card = h("section", { class: "card" }, h("div", { class: "card-head" }, h("h3", { text: "You and this learner" }),
+    h("button", { type: "button", onclick: () => show("teaching") }, "My teaching style")));
+  if (!teacherId()) { card.append(h("p", { class: "muted", text: "Choose your name in the side panel to see how your way of teaching sits next to what has helped this learner." })); return card; }
+  const f = await api("/api/learners/" + lid + "/fit?teacher_id=" + encodeURIComponent(teacherId()));
+  if (!f.has_profile) {
+    card.append(h("p", { class: "muted", text: "Tell Meska Brain how you teach (it takes a minute), and this card will set it beside what has been followed by gains for this learner." }),
+      h("button", { type: "button", class: "primary", onclick: () => show("teaching") }, "Describe my teaching"));
+    return card;
+  }
+  card.append(h("p", { class: "small muted", text: "For " + f.teacher.name + ". Two facts side by side: what was followed by gains for this learner, and how often you say you teach that way." }));
+  if (f.notes.length) card.append(h("ul", { class: "patlist" }, f.notes.map((n) => h("li", { text: n }))));
+  card.append(h("div", { class: "tablewrap", style: "margin-top:12px" }, h("table", {},
+    h("thead", {}, h("tr", {}, ["Approach", "For this learner", "You said you use it", "Units you taught this way"].map((x) => h("th", { scope: "col", text: x })))),
+    h("tbody", {}, f.rows.map((r) => h("tr", {}, h("td", { text: r.label }),
+      h("td", {}, r.followed_by_gains ? h("span", { class: "pill ok", text: "scores rose " + r.improved + " of " + r.times }) : h("span", { class: "muted", text: "rose " + r.improved + " of " + r.times })),
+      h("td", { text: r.you_said || "not answered" }), h("td", { class: "numcol", text: r.your_recorded_units })))))),
+    h("p", { class: "small muted", text: f.caution }));
+  return card;
+}
+
+// ---------------------------------------------------------------- my teaching
+async function viewTeaching(root) {
+  root.append(h("div", { class: "pagehead" }, h("div", {}, h("h2", { text: "My teaching style" }),
+    h("p", { class: "muted", text: "Your own description of how you teach. Meska Brain uses it to set your way of teaching beside what has helped each learner. It is never a score, and nobody is ranked." }))));
+  if (!teacherId()) { root.append(h("p", { class: "empty card", text: "Choose your name in the side panel first." })); return; }
+  const p = await api("/api/teachers/" + encodeURIComponent(teacherId()) + "/profile");
+  const a = p.answers || {}, chosen = Object.assign({}, a.approaches || {});
+  const msg = h("div", { "aria-live": "polite" });
+  const rows = p.questions.approaches.map((q) => {
+    const group = h("div", { class: "seg", role: "radiogroup", "aria-label": q.label });
+    const paint = () => [...group.children].forEach((b) => b.setAttribute("aria-checked", String(b.dataset.v === chosen[q.id])));
+    for (const f of p.questions.frequencies) group.append(h("button", { type: "button", role: "radio", "data-v": f, onclick: () => { chosen[q.id] = f; paint(); } }, f[0].toUpperCase() + f.slice(1)));
+    paint();
+    return h("div", { class: "qrow" }, h("span", { text: q.label }), group);
+  });
+  const field = (id, label, value, long) => {
+    const el = long ? h("textarea", { id }) : h("input", { type: "text", id });
+    el.value = value || "";
+    return [h("div", {}, h("label", { for: id, text: label }), el), el];
+  };
+  const [langBox, lang] = field("t-lang", "Languages you teach in", a.languages);
+  const [sizeBox, size] = field("t-size", "Usual class size", a.class_size);
+  const [worksBox, works] = field("t-works", "What tends to work in your classroom", a.what_works, true);
+  const [helpBox, help] = field("t-help", "Where you would like help", a.wants_help_with, true);
+  const save = h("button", { type: "button", class: "primary", onclick: async () => {
+    save.disabled = true;
+    try {
+      await post("/api/teachers/" + encodeURIComponent(teacherId()) + "/profile", { approaches: chosen, languages: lang.value, class_size: size.value, what_works: works.value, wants_help_with: help.value });
+      clear(msg).append(h("span", { class: "okmsg", text: "Saved. Open any learner profile to see it used." }));
+    } catch (e) { decisionError(msg, e.message); }
+    save.disabled = false;
+  } }, "Save my teaching style");
+  const max = Math.max(1, ...p.recorded_units.map((u) => u.n));
+  root.append(h("div", { class: "grid2 wide-left" },
+    h("section", { class: "card" }, h("div", { class: "card-head" }, h("h3", { text: p.teacher.name + ": how often do you teach this way?" })),
+      h("div", { class: "qlist" }, rows),
+      h("div", { class: "qfields" }, langBox, sizeBox), worksBox, helpBox,
+      h("div", { class: "row", style: "margin-top:14px" }, save), msg),
+    h("section", { class: "card" }, h("div", { class: "card-head" }, h("h3", { text: "What the record shows you taught" })),
+      h("p", { class: "small muted", text: "Units on file for you, by approach. This comes from lesson records, not from your answers." }),
+      h("div", { class: "hbars" }, p.recorded_units.map((u) => h("div", { class: "hbar" }, h("span", { class: "hbar-label", text: u.label }),
+        h("span", { class: "hbar-track" }, h("span", { class: "hbar-fill", style: "width:" + (u.n / max) * 100 + "%" })), h("span", { class: "hbar-num", text: u.n + " units" })))))));
 }
 
 // ---------------------------------------------------------------- the map
@@ -1186,6 +1326,7 @@ function findingCard(f) {
       h("span", { class: "muted small", text: confWords(f.confidence) })),
     h("p", { class: "statement", text: f.statement }),
     f.path && f.path.length > 1 ? h("p", { class: "small muted", text: "Path checked: " + f.path.map(labelOf).join(" → ") }) : null,
+    f.next_step ? h("div", { class: "nextstep" }, h("strong", { text: "A possible next step, for you to decide" }), h("div", { text: f.next_step })) : null,
     h("details", { open: true }, h("summary", { text: "Evidence behind this (" + f.evidence.length + " records)" }), evidenceTable(f.evidence)),
     h("p", { class: "small muted", text: "Proposed by " + f.proposed_by + "." }),
     h("div", { class: "controls" },
@@ -1271,6 +1412,7 @@ async function viewApproved(root) {
         h("span", { class: "pill", text: KIND[f.kind] || f.kind }),
         h("span", { class: "pill ok", text: (f.status === "edited" ? "Edited and approved by " : "Approved by ") + teacherName(f.decided_by) + (f.decided_at ? " on " + when(f.decided_at) : "") })),
       h("p", { class: "statement", text: f.statement }),
+      f.next_step ? h("div", { class: "nextstep" }, h("strong", { text: "A possible next step" }), h("div", { text: f.next_step })) : null,
       h("details", {}, h("summary", { text: "Evidence behind this (" + f.evidence.length + " records)" }), evidenceTable(f.evidence))));
   }
 }

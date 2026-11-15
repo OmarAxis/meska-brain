@@ -149,3 +149,39 @@ def test_learner_dashboard_series_follow_the_record(client):
     for strand in body["strands"]:
         assert all(0 <= p["mean"] <= 1 and p["n"] > 0 and p["period"] in body["periods"] for p in strand["points"])
     assert client.get("/api/learners/nobody/dashboard").status_code == 400
+
+
+def test_learner_mind_describes_results_and_leaves_out_dispositions(client):
+    lid = client.get("/api/learners").json()["learners"][0]["learner_id"]
+    body = client.get(f"/api/learners/{lid}/mind").json()
+    assert body["strands"] and body["teachers"]
+    assert all(0 <= s["mean"] <= 1 and s["n"] > 0 for s in body["strands"] + body["skills"])
+    # Persistence is a disposition: it is never summarised as a trait of a child.
+    assert "persistence-on-hard-problems" not in {s["id"] for s in body["skills"]}
+
+
+def test_teaching_style_is_saved_logged_and_never_a_score(client):
+    teacher = _teacher(client)
+    lid = client.get("/api/learners").json()["learners"][0]["learner_id"]
+    before = client.get(f"/api/learners/{lid}/fit", params={"teacher_id": teacher["id"]}).json()
+    assert before["has_profile"] is False
+    saved = client.post(f"/api/teachers/{teacher['id']}/profile",
+                        json={"approaches": {"concrete_objects": "rarely", "peer_groups": "often", "made_up": "always"},
+                              "languages": "English, Swahili"}).json()
+    assert saved["answers"]["approaches"] == {"concrete_objects": "rarely", "peer_groups": "often"}
+    profile = client.get(f"/api/teachers/{teacher['id']}/profile").json()
+    assert profile["answers"]["languages"] == "English, Swahili"
+    assert len(profile["recorded_units"]) == len(profile["questions"]["approaches"])
+    after = client.get(f"/api/learners/{lid}/fit", params={"teacher_id": teacher["id"]}).json()
+    assert after["has_profile"] is True
+    for row in after["rows"]:
+        assert not {"score", "rating", "rank", "grade"} & set(row)
+    logged = client.get("/api/audit", params={"tool": "save_teaching_style"}).json()["entries"]
+    assert logged and logged[0]["actor"] == f"teacher:{teacher['id']}"
+    assert client.post("/api/teachers/nobody/profile", json={}).status_code == 400
+
+
+def test_pending_findings_carry_a_next_step_for_the_teacher(client, proposed):
+    pending = client.get("/api/review/pending").json()["findings"]
+    mine = next(f for f in pending if f["id"] == proposed["finding_id"])
+    assert mine["next_step"] and "trace back" in mine["next_step"]

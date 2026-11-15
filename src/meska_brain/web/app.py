@@ -16,7 +16,8 @@ from pydantic import BaseModel
 
 from .. import db, graph, review
 from ..config import get_settings
-from . import dashboard
+from ..curriculum import load_pack
+from . import dashboard, people
 
 STATIC = Path(__file__).with_name("static")
 
@@ -97,6 +98,26 @@ def learner_dashboard(learner_id: str) -> dict:
     return dashboard.learner_dashboard(learner_id)
 
 
+@app.get("/api/learners/{learner_id}/mind")
+def learner_mind(learner_id: str) -> dict:
+    return people.learner_mind(learner_id)
+
+
+@app.get("/api/learners/{learner_id}/fit")
+def learner_fit(learner_id: str, teacher_id: str) -> dict:
+    return people.fit(learner_id, teacher_id)
+
+
+@app.get("/api/teachers/{teacher_id}/profile")
+def teacher_profile(teacher_id: str) -> dict:
+    return people.teacher_profile(teacher_id)
+
+
+@app.post("/api/teachers/{teacher_id}/profile")
+def save_teacher_profile(teacher_id: str, body: dict[str, Any]) -> dict:
+    return people.save_teacher_profile(teacher_id, body)
+
+
 @app.get("/api/learners/{learner_id}/graph")
 def learner_graph(learner_id: str) -> dict:
     data = graph.learner_graph(learner_id)
@@ -167,12 +188,19 @@ def _expand_finding(conn, finding: dict) -> dict:
     marks = ",".join("?" for _ in out["evidence_ids"])
     out["evidence"] = db.rows(conn, f"SELECT * FROM evidence WHERE id IN ({marks}) ORDER BY period_ord, id",
                               tuple(out["evidence_ids"])) if marks else []
+    learner = db.one(conn, "SELECT pack_id FROM learners WHERE id = ?", (finding["learner_id"],))
+    out["next_step"] = people.next_step(out, load_pack(learner["pack_id"])) if learner else None
     return out
 
 
 @app.get("/api/review/pending")
 def review_pending() -> dict:
-    return review.pending()
+    data = review.pending()
+    with db.connect() as conn:
+        packs = {r["id"]: r["pack_id"] for r in db.rows(conn, "SELECT id, pack_id FROM learners")}
+    for finding in data["findings"]:
+        finding["next_step"] = people.next_step(finding, load_pack(packs[finding["learner_id"]]))
+    return data
 
 
 @app.get("/api/findings")
