@@ -11,7 +11,7 @@ FINDING_DECISIONS = ("approved", "edited", "rejected")
 SUMMARY_DECISIONS = ("approved", "rejected")
 
 
-def _expand_finding(conn, finding: dict) -> dict:
+def expand_finding(conn, finding: dict) -> dict:
     """A finding with its JSON fields decoded and its cited evidence rows attached."""
     finding = dict(finding, concept_ids=db.jload(finding["concept_ids"], []),
                    evidence_ids=db.jload(finding["evidence_ids"], []), path=db.jload(finding["path"], []))
@@ -24,13 +24,13 @@ def _expand_finding(conn, finding: dict) -> dict:
 def pending(db_path=None) -> dict:
     """Findings and summaries waiting for a teacher, with the evidence behind them."""
     with db.connect(db_path) as conn:
-        findings = [_expand_finding(conn, f) for f in db.rows(
+        findings = [expand_finding(conn, f) for f in db.rows(
             conn, "SELECT * FROM findings WHERE status = 'proposed' ORDER BY proposed_at, id")]
         summaries = []
         for summary in db.rows(conn, "SELECT * FROM summaries WHERE status = 'draft' ORDER BY created_at, id"):
             ids = db.jload(summary["finding_ids"], [])
             summary = dict(summary, finding_ids=ids, findings=[
-                _expand_finding(conn, f) for f in db.rows(
+                expand_finding(conn, f) for f in db.rows(
                     conn, f"SELECT * FROM findings WHERE id IN ({','.join('?' for _ in ids)})", tuple(ids))])
             summaries.append(summary)
     return {"findings": findings, "summaries": summaries}
@@ -41,6 +41,14 @@ def _teacher(conn, teacher_id: str) -> dict:
     if teacher is None:
         raise ValueError(f"Unknown teacher '{teacher_id}'. Only a named teacher can decide.")
     return teacher
+
+
+def _refuse(conn, table: str, what: str, target_id: str) -> None:
+    """Say why nothing was decided: the item does not exist, or someone decided it first."""
+    row = db.one(conn, f"SELECT status FROM {table} WHERE id = ?", (target_id,))
+    if row is None:
+        raise ValueError(f"Unknown {what.lower()} '{target_id}'.")
+    raise ValueError(f"{what} '{target_id}' was already decided ({row['status']}).")
 
 
 def _record_approval(conn, target_type: str, target_id: str, decision: str, teacher: dict,
@@ -65,17 +73,16 @@ def decide_finding(finding_id: str, decision: str, teacher_id: str, note: str | 
             raise ValueError("The edited statement was rejected: " + " | ".join(problems))
     with db.connect(db_path) as conn:
         teacher = _teacher(conn, teacher_id)
-        finding = db.one(conn, "SELECT * FROM findings WHERE id = ?", (finding_id,))
-        if finding is None:
-            raise ValueError(f"Unknown finding '{finding_id}'.")
-        if finding["status"] != "proposed":
-            raise ValueError(f"Finding '{finding_id}' was already decided ({finding['status']}).")
-        statement = edited_statement if decision == "edited" else finding["statement"]
-        conn.execute("UPDATE findings SET status = ?, statement = ?, decided_by = ?, decided_at = ?, "
-                     "teacher_note = ? WHERE id = ?",
-                     (decision, statement, teacher_id, db.now_iso(), note, finding_id))
+        # The check and the change are one statement: of two decisions arriving together, one wins.
+        changed = conn.execute(
+            "UPDATE findings SET status = ?, statement = COALESCE(?, statement), decided_by = ?, "
+            "decided_at = ?, teacher_note = ? WHERE id = ? AND status = 'proposed'",
+            (decision, edited_statement if decision == "edited" else None, teacher_id, db.now_iso(), note,
+             finding_id)).rowcount
+        if not changed:
+            _refuse(conn, "findings", "Finding", finding_id)
         _record_approval(conn, "finding", finding_id, decision, teacher, note)
-        result = _expand_finding(conn, db.one(conn, "SELECT * FROM findings WHERE id = ?", (finding_id,)))
+        result = expand_finding(conn, db.one(conn, "SELECT * FROM findings WHERE id = ?", (finding_id,)))
         audit.write_row(conn, "decide_finding", {"finding_id": finding_id, "decision": decision,
                                                  "teacher_id": teacher_id, "note": note,
                                                  "edited_statement": edited_statement},
@@ -91,13 +98,11 @@ def decide_summary(summary_id: str, decision: str, teacher_id: str, note: str | 
         raise ValueError(f"Decision must be one of: {', '.join(SUMMARY_DECISIONS)}.")
     with db.connect(db_path) as conn:
         teacher = _teacher(conn, teacher_id)
-        summary = db.one(conn, "SELECT * FROM summaries WHERE id = ?", (summary_id,))
-        if summary is None:
-            raise ValueError(f"Unknown summary '{summary_id}'.")
-        if summary["status"] != "draft":
-            raise ValueError(f"Summary '{summary_id}' was already decided ({summary['status']}).")
-        conn.execute("UPDATE summaries SET status = ?, decided_by = ?, decided_at = ? WHERE id = ?",
-                     (decision, teacher_id, db.now_iso(), summary_id))
+        changed = conn.execute(
+            "UPDATE summaries SET status = ?, decided_by = ?, decided_at = ? WHERE id = ? AND status = 'draft'",
+            (decision, teacher_id, db.now_iso(), summary_id)).rowcount
+        if not changed:
+            _refuse(conn, "summaries", "Summary", summary_id)
         _record_approval(conn, "summary", summary_id, decision, teacher, note)
         result = db.one(conn, "SELECT * FROM summaries WHERE id = ?", (summary_id,))
         result["finding_ids"] = db.jload(result["finding_ids"], [])

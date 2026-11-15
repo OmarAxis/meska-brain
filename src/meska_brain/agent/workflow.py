@@ -102,6 +102,10 @@ async def load_learner(state: RunState) -> dict:
     hub, _, _ = _res(state)
     timeline = await hub.call("get_learner_timeline", learner_id=state["learner_id"], limit=1)
     learner = timeline["learner"]
+    # The grade the learner is in now is the grade of their latest record. It limits the list of
+    # topics the model may file a row under to ones the learner could have met.
+    latest = [item for period in timeline["periods"] for item in period["items"]]
+    learner["grade_now"] = (latest[-1]["grade"] if latest else None) or learner.get("start_grade")
     return {"learner": learner, **_step("load_learner", f"Loaded {learner.get('alias', state['learner_id'])}.")}
 
 
@@ -146,6 +150,26 @@ def _other_learners_in(text: str, learner: dict) -> bool:
     """True when the document names learners other than the target (so fewer rows is correct)."""
     names = set(re.findall(r"Learner [A-Z]-\d+", text))
     return bool(names - {learner.get("alias")})
+
+
+def _same_learner(named: str | None, alias: str | None) -> bool:
+    """True when the alias the model read is the target learner. Models often shorten
+    'Learner C-31' to 'C-31', so the code part (letter, dash, number) is compared when both have one."""
+    named, alias = (named or "").strip().lower(), (alias or "").strip().lower()
+    if not named:
+        return True
+    code = r"(?<![a-z])[a-z]-\d+"
+    named_codes, alias_codes = re.findall(code, named), re.findall(code, alias)
+    if named_codes and alias_codes:
+        return named_codes == alias_codes
+    return named == alias
+
+
+def _grade_in(learner: dict, year: int | None) -> int | None:
+    """The grade the learner is in for a school year, from when they were first enrolled."""
+    if year is None or learner.get("start_year") is None or learner.get("start_grade") is None:
+        return learner.get("grade_now")
+    return int(learner["start_grade"]) + (int(year) - int(learner["start_year"]))
 
 
 class Period(BaseModel):
@@ -223,8 +247,7 @@ async def extract_evidence(state: RunState) -> dict:
             notes.append("term found with a follow-up question")
 
     # Self-checks on what the model returned.
-    alias = (extraction.learner_alias or "").strip().lower()
-    if alias and alias != str(learner.get("alias", "")).strip().lower():
+    if not _same_learner(extraction.learner_alias, learner.get("alias")):
         return {"extraction": {"rows": []},
                 **_step("extract_evidence", f"Document names '{extraction.learner_alias}', not {learner.get('alias')}. "
                         "Nothing recorded: a record must not land on the wrong learner.", ok=False)}
@@ -274,7 +297,7 @@ async def record_evidence(state: RunState) -> dict:
             result = await hub.call(
                 "record_evidence", learner_id=state["learner_id"], kind=row["kind"],
                 year=extraction["year"], term=extraction["term"],
-                grade=extraction.get("grade") or learner.get("grade_now") or 0,
+                grade=extraction.get("grade") or _grade_in(learner, extraction["year"]) or 0,
                 source_ref=f"{file_name}#row{index}", concept_id=row.get("concept_id"),
                 score=row.get("score"), absent_days=row.get("absent_days"),
                 raw_text=row.get("quote"), language=row.get("language") or "en")

@@ -185,3 +185,13 @@ def test_pending_findings_carry_a_next_step_for_the_teacher(client, proposed):
     pending = client.get("/api/review/pending").json()["findings"]
     mine = next(f for f in pending if f["id"] == proposed["finding_id"])
     assert mine["next_step"] and "trace back" in mine["next_step"]
+
+
+def test_patterns_page_cannot_lower_the_evidence_bar(client):
+    lid = client.get("/api/learners").json()["learners"][0]["learner_id"]
+    r = client.get(f"/api/learners/{lid}/patterns", params={"min_periods": 1})
+    assert r.status_code == 400 and "at least 3 terms" in r.json()["error"]
+
+
+def test_unknown_finding_status_is_400(client):
+    assert client.get("/api/findings", params={"status": "bogus"}).status_code == 400

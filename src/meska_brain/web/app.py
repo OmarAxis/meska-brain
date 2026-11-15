@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from .. import db, graph, review
+from .. import db, graph, review, tools
 from ..config import get_settings
 from ..curriculum import load_pack
 from . import dashboard, people
@@ -77,15 +77,7 @@ def _learner_exists(conn, learner_id: str) -> None:
 @app.get("/api/learners")
 def learners() -> dict:
     with db.connect() as conn:
-        found = db.rows(conn, """
-            SELECT l.id AS learner_id, l.alias, l.home_language, l.start_grade,
-                   MAX(e.grade) AS latest_grade, COUNT(e.id) AS evidence_count
-            FROM learners l LEFT JOIN evidence e ON e.learner_id = l.id AND e.status != 'retracted'
-            GROUP BY l.id ORDER BY l.alias COLLATE NOCASE, l.id""")
-    return {"learners": [{"learner_id": r["learner_id"], "alias": r["alias"],
-                          "grade_now": r["latest_grade"] or r["start_grade"],
-                          "home_language": r["home_language"], "evidence_count": r["evidence_count"]}
-                         for r in found]}
+        return {"learners": tools.learner_rows(conn)}
 
 
 @app.get("/api/overview")
@@ -156,6 +148,7 @@ def learner_trace(learner_id: str, concept_id: str) -> dict:
 
 @app.get("/api/learners/{learner_id}/patterns")
 def learner_patterns(learner_id: str, min_periods: int = 3) -> dict:
+    tools.check_min_periods(min_periods)
     return graph.find_patterns(learner_id, min_periods)
 
 
@@ -188,11 +181,7 @@ def teachers() -> dict:
 # ------------------------------------------------------------------ review
 
 def _expand_finding(conn, finding: dict) -> dict:
-    out = dict(finding, concept_ids=db.jload(finding["concept_ids"], []),
-               evidence_ids=db.jload(finding["evidence_ids"], []), path=db.jload(finding["path"], []))
-    marks = ",".join("?" for _ in out["evidence_ids"])
-    out["evidence"] = db.rows(conn, f"SELECT * FROM evidence WHERE id IN ({marks}) ORDER BY period_ord, id",
-                              tuple(out["evidence_ids"])) if marks else []
+    out = review.expand_finding(conn, finding)
     learner = db.one(conn, "SELECT pack_id FROM learners WHERE id = ?", (finding["learner_id"],))
     out["next_step"] = people.next_step(out, load_pack(learner["pack_id"])) if learner else None
     return out
@@ -215,6 +204,8 @@ def findings(learner_id: str | None = None, status: str | None = None) -> dict:
         where.append("learner_id = ?")
         params.append(learner_id)
     if status:
+        if status not in tools.FINDING_STATUSES:
+            raise ValueError(f"Unknown status '{status}'. Use one of: {', '.join(tools.FINDING_STATUSES)}.")
         where.append("status = ?")
         params.append(status)
     if where:

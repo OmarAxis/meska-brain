@@ -241,3 +241,10 @@ def test_actor_and_run_id_kwargs_reach_the_tool(db_path):
     assert (last["actor"], last["run_id"]) == ("agent", "run_456")
     assert "_actor" not in json.loads(last["input"])
     assert audit.current_actor.get() == "mcp-client" and audit.current_run_id.get() is None
+
+
+@pytest.mark.parametrize("limit", [0, -1, 5000])
+def test_timeline_refuses_an_unbounded_limit(db_path, limit):
+    learner_id = tools.list_learners(db_path=db_path)["learners"][0]["learner_id"]
+    with pytest.raises(ValueError, match="limit must be between"):
+        tools.get_learner_timeline(learner_id=learner_id, limit=limit, db_path=db_path)
