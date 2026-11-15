@@ -11,6 +11,7 @@ from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from .. import db, graph, review
@@ -19,6 +20,8 @@ from ..config import get_settings
 STATIC = Path(__file__).with_name("static")
 
 app = FastAPI(title="Meska Brain", docs_url=None, redoc_url=None)
+# Brand assets (the logo). The page itself is served at "/".
+app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
 
 class _RunnerUnavailable(Exception):

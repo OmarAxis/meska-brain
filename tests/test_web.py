@@ -118,3 +118,12 @@ def test_index_served_without_external_hosts(client):
     assert "Meska Brain" in r.text
     urls = re.findall(r"https?://[^\s\"'<>)]+", r.text)
     assert [u for u in urls if u != "http://www.w3.org/2000/svg"] == []
+
+
+def test_page_and_logo_are_served(client):
+    page = client.get("/")
+    assert page.status_code == 200
+    assert "/static/brand/meska-white.png" in page.text
+    logo = client.get("/static/brand/meska-white.png")
+    assert logo.status_code == 200
+    assert logo.headers["content-type"] == "image/png"

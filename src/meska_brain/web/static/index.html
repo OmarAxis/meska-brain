@@ -5,170 +5,212 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Meska Brain: learning map</title>
 <style>
+/* Meska brand tokens. Articulat CF is the brand typeface; it is used when installed on the
+   machine. It is not shipped here because it is a licensed font and this repository is public. */
 :root {
-  --bg: #f5f6f4;
-  --panel: #ffffff;
-  --ink: #1d2327;
-  --muted: #4d565e;
-  --line: #d3d8dc;
-  --accent: #1f5f99;
-  --accent-ink: #ffffff;
-  --focus: #b34700;
-  --ok: #1d6b3a;
-  --bad: #9c2b12;
-  --strong-fill: #1f5f99;
-  --strong-ink: #ffffff;
-  --shaky-fill: #f6e3a1;
-  --shaky-line: #7a5f00;
-  --gap-fill: #f5c9ae;
-  --gap-line: #a63f00;
-  --unseen-line: #6b727a;
-  --radius: 8px;
+  --blue: #2871F4;          /* Meska Blue: accents, selection, focus */
+  --blue-strong: #1B5BD6;   /* same hue, dark enough for white text and for text on white */
+  --blue-soft: #EAF1FE;
+  --navy: #000038;
+  --electric: #0000CE;
+  --bg: #F5F7FB;
+  --panel: #FFFFFF;
+  --ink: #0A0A0A;
+  --muted: #5B6478;
+  --line: #E3E8F2;
+  --line-strong: #C5CEDF;
+  --accent: var(--blue-strong);
+  --accent-ink: #FFFFFF;
+  --focus: #B34700;
+  --ok: #17643A;
+  --ok-soft: #E6F4EC;
+  --bad: #9C2B12;
+  --bad-soft: #FBEEEA;
+  --warn: #7A5F00;
+  --strong-fill: #1B5BD6;
+  --strong-ink: #FFFFFF;
+  --shaky-fill: #F6E3A1;
+  --shaky-line: #7A5F00;
+  --gap-fill: #F5C9AE;
+  --gap-line: #A63F00;
+  --unseen-line: #7B8498;
+  --radius: 14px;
+  --radius-sm: 10px;
+  --shadow: 0 1px 2px rgba(0, 0, 56, .05), 0 6px 20px rgba(0, 0, 56, .06);
   color-scheme: light;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { margin: 0; }
 body {
-  font: 15px/1.5 system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font: 15px/1.55 "Articulat CF", Inter, "Segoe UI", system-ui, Roboto, "Helvetica Neue", Arial, sans-serif;
   color: var(--ink); background: var(--bg);
+  -webkit-font-smoothing: antialiased;
 }
 :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 button, select, input, textarea { font: inherit; color: inherit; }
 button {
-  cursor: pointer; border: 1px solid var(--line); background: #fff; border-radius: 6px;
-  padding: 6px 12px; min-height: 36px;
+  cursor: pointer; border: 1px solid var(--line-strong); background: #fff; border-radius: var(--radius-sm);
+  padding: 7px 14px; min-height: 38px; font-weight: 500;
+  transition: background .12s ease, border-color .12s ease, box-shadow .12s ease;
 }
-button:hover { background: #eef2f5; }
-button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
-button.primary:hover { background: #184c7b; }
+button:hover { background: var(--bg); border-color: var(--muted); }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+button.primary:hover { background: #154BB6; border-color: #154BB6; }
 button.danger { border-color: var(--bad); color: var(--bad); }
-button.danger:hover { background: #fbeeea; }
+button.danger:hover { background: var(--bad-soft); }
 button:disabled { opacity: .55; cursor: not-allowed; }
 select, input[type=text], textarea {
-  border: 1px solid #8b949b; border-radius: 6px; padding: 6px 8px; background: #fff; min-height: 36px;
+  border: 1px solid var(--line-strong); border-radius: var(--radius-sm); padding: 7px 10px; background: #fff; min-height: 38px;
 }
-textarea { width: 100%; min-height: 70px; resize: vertical; }
-label { font-weight: 600; font-size: 13px; color: var(--muted); }
-h1, h2, h3 { line-height: 1.25; margin: 0; }
-h2 { font-size: 18px; }
-h3 { font-size: 15px; }
+select:hover, input[type=text]:hover, textarea:hover { border-color: var(--muted); }
+textarea { width: 100%; min-height: 76px; resize: vertical; }
+label { font-weight: 600; font-size: 12px; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; display: inline-block; margin-bottom: 3px; }
+h1, h2, h3 { line-height: 1.2; margin: 0; letter-spacing: -.01em; }
+h2 { font-size: 24px; font-weight: 700; }
+h3 { font-size: 16px; font-weight: 600; }
+h2 + p { margin-top: 6px; max-width: 78ch; }
 .muted { color: var(--muted); }
 .small { font-size: 13px; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
+/* Top bar: the brand gradient, white logo */
 header.top {
-  display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between;
-  padding: 10px 20px; background: #fff; border-bottom: 1px solid var(--line);
+  display: flex; flex-wrap: wrap; gap: 12px 28px; align-items: center; justify-content: space-between;
+  padding: 14px 28px; color: #fff;
+  background: linear-gradient(135deg, #000038 0%, #000058 45%, #0000CE 100%);
 }
-header.top h1 { font-size: 19px; }
-header.top .sub { font-size: 13px; color: var(--muted); }
-.who { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
-.who .note { font-size: 12px; color: var(--muted); max-width: 320px; }
+.brand { display: flex; align-items: center; gap: 16px; min-width: 0; }
+.brand img { height: 24px; width: auto; display: block; margin: 6px 4px 6px 0; }
+.brand .product { padding-left: 16px; border-left: 1px solid rgba(255, 255, 255, .28); }
+.brand h1 { font-size: 18px; font-weight: 700; color: #fff; }
+.brand .sub { font-size: 13px; color: rgba(255, 255, 255, .78); }
+.who { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+.who label { color: rgba(255, 255, 255, .78); margin: 0; }
+.who select { background: rgba(255, 255, 255, .1); color: #fff; border-color: rgba(255, 255, 255, .35); min-width: 190px; }
+.who select:hover { border-color: #fff; }
+.who select option { color: var(--ink); background: #fff; }
+.who .note { font-size: 12px; color: rgba(255, 255, 255, .7); max-width: 250px; line-height: 1.35; }
+header.top :focus-visible { outline-color: #fff; }
 
-.layout { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 16px; padding: 16px 20px; align-items: start; }
-#rail { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px; position: sticky; top: 8px; max-height: calc(100vh - 16px); overflow: auto; }
-#rail h2 { font-size: 14px; color: var(--muted); padding: 2px 6px 8px; }
-#rail ul { list-style: none; margin: 0; padding: 0; }
-#rail button { width: 100%; text-align: left; border: 1px solid transparent; background: transparent; display: flex; justify-content: space-between; gap: 8px; padding: 6px 8px; }
-#rail button:hover { background: #eef2f5; }
-#rail button[aria-current=true] { background: #e3edf6; border-color: var(--accent); font-weight: 600; }
-#rail .grade { color: var(--muted); font-size: 13px; white-space: nowrap; }
+.layout { display: grid; grid-template-columns: 232px minmax(0, 1fr); gap: 24px; padding: 24px 28px 40px; align-items: start; max-width: 1680px; margin: 0 auto; }
+#rail { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 12px; position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow: auto; }
+#rail h2 { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; padding: 4px 8px 10px; }
+#rail ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+#rail button { width: 100%; text-align: left; border: 1px solid transparent; background: transparent; display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 10px; min-height: 40px; }
+#rail button:hover { background: var(--bg); }
+#rail button[aria-current=true] { background: var(--blue-soft); border-color: var(--blue); color: #0B2E7A; font-weight: 600; }
+#rail .grade { color: var(--muted); font-size: 12px; white-space: nowrap; font-weight: 400; }
 
-nav.tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 2px solid var(--line); margin-bottom: 14px; }
-nav.tabs button { border: none; border-bottom: 3px solid transparent; border-radius: 6px 6px 0 0; background: transparent; padding: 8px 14px; margin-bottom: -2px; }
-nav.tabs button[aria-current=page] { border-bottom-color: var(--accent); font-weight: 700; }
-.badge { display: inline-block; min-width: 20px; padding: 0 6px; margin-left: 6px; border-radius: 10px; background: var(--accent); color: #fff; font-size: 12px; text-align: center; }
+/* Section switcher: a segmented control */
+nav.tabs { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 4px; margin-bottom: 20px; background: #E9EDF5; border-radius: 14px; }
+nav.tabs button { border: none; background: transparent; padding: 7px 16px; min-height: 36px; border-radius: 10px; color: var(--muted); font-weight: 500; }
+nav.tabs button:hover { color: var(--ink); background: rgba(255, 255, 255, .6); }
+nav.tabs button[aria-current=page] { background: #fff; color: var(--ink); font-weight: 600; box-shadow: 0 1px 3px rgba(0, 0, 56, .14); }
+.badge { display: inline-block; min-width: 20px; padding: 0 6px; margin-left: 7px; border-radius: 10px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 600; text-align: center; line-height: 20px; }
 
-.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; }
-.card + .card { margin-top: 12px; }
-.row { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px 20px; }
+.card + .card { margin-top: 14px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
 .stack > * + * { margin-top: 10px; }
 .err { color: var(--bad); font-weight: 600; }
-.okmsg { color: var(--ok); font-weight: 600; }
-.empty { padding: 20px; color: var(--muted); }
+.okmsg { display: inline-block; color: var(--ok); background: var(--ok-soft); font-weight: 600; padding: 6px 12px; border-radius: var(--radius-sm); margin-top: 8px; }
+.empty { padding: 28px; color: var(--muted); text-align: center; }
+.foot { margin: 32px 0 0; padding-top: 16px; border-top: 1px solid var(--line); max-width: 90ch; }
 
 /* Map */
-.map-top { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 20px; align-items: flex-end; margin-bottom: 10px; }
-.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; list-style: none; margin: 0; padding: 0; font-size: 13px; }
-.legend li { display: flex; align-items: center; gap: 6px; }
-.map-cols { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 14px; align-items: start; }
-.mapbox { overflow: auto; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); max-height: 72vh; }
-.replay { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-bottom: 10px; }
-.replay input[type=range] { flex: 1 1 220px; min-width: 160px; min-height: 28px; }
-#detail { position: sticky; top: 8px; max-height: calc(100vh - 16px); overflow: auto; }
+.map-top { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px 24px; align-items: flex-end; margin-bottom: 14px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; list-style: none; margin: 0; padding: 0; font-size: 13px; color: var(--muted); }
+.legend li { display: flex; align-items: center; gap: 7px; }
+.map-cols { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; align-items: start; }
+.mapbox { overflow: auto; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); max-height: 72vh; }
+.replay { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-bottom: 14px; }
+.replay input[type=range] { flex: 1 1 220px; min-width: 160px; min-height: 28px; accent-color: var(--blue); }
+#detail { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow: auto; }
 
 svg text { font-family: inherit; }
-.lane-bg { fill: #f7f8f9; }
-.lane-bg.alt { fill: #ffffff; }
-.lane-label { font-size: 12px; font-weight: 700; fill: #2b333a; }
-.grade-label { font-size: 12px; font-weight: 700; fill: #2b333a; }
-.edge { fill: none; stroke: #8a949c; stroke-width: 1; opacity: .55; }
-.edge.hl { stroke: #1d2327; stroke-width: 2; opacity: 1; }
-.edge.tp { stroke: #a63f00; stroke-width: 3.5; opacity: 1; }
+.lane-bg { fill: #F8FAFD; }
+.lane-bg.alt { fill: #FFFFFF; }
+.lane-label { font-size: 12px; font-weight: 700; fill: #1C2333; }
+.grade-label { font-size: 11px; font-weight: 700; fill: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
+.edge { fill: none; stroke: #9AA4B8; stroke-width: 1; opacity: .5; }
+.edge.hl { stroke: #0A0A0A; stroke-width: 2; opacity: 1; }
+.edge.tp { stroke: #A63F00; stroke-width: 3.5; opacity: 1; }
 .tracing .edge:not(.tp) { opacity: .15; }
 .node { cursor: pointer; }
 .node rect.body { stroke-width: 1.5; }
 .node text { font-size: 11px; pointer-events: none; }
-.s-strong rect.body { fill: var(--strong-fill); stroke: #123e66; stroke-width: 2; }
+.s-strong rect.body { fill: var(--strong-fill); stroke: #103C92; stroke-width: 2; }
 .s-strong text { fill: var(--strong-ink); }
 .s-shaky rect.body { fill: var(--shaky-fill); stroke: var(--shaky-line); stroke-width: 1.5; }
-.s-shaky text { fill: #2f2500; }
+.s-shaky text { fill: #2F2500; }
 .s-gap rect.body { fill: url(#hatch); stroke: var(--gap-line); stroke-width: 3; }
-.s-gap text { fill: #3a1600; font-weight: 600; }
+.s-gap text { fill: #3A1600; font-weight: 600; }
 .s-unseen rect.body { fill: #fff; stroke: var(--unseen-line); stroke-width: 1.5; stroke-dasharray: 3 3; }
-.s-unseen text { fill: #4d565e; }
+.s-unseen text { fill: var(--muted); }
 .node:not(.s-strong) .m-strong, .node:not(.s-shaky) .m-shaky, .node:not(.s-gap) .m-gap, .node:not(.s-unseen) .m-unseen { display: none; }
 .m-strong { fill: #fff; }
-.m-shaky { fill: #7a5f00; }
-.m-gap { fill: #a63f00; }
-.m-unseen { fill: none; stroke: #6b727a; stroke-width: 1.5; stroke-dasharray: 2 2; }
+.m-shaky { fill: #7A5F00; }
+.m-gap { fill: #A63F00; }
+.m-unseen { fill: none; stroke: var(--unseen-line); stroke-width: 1.5; stroke-dasharray: 2 2; }
 .ring { display: none; fill: none; }
-.node.selected .ring.sel { display: block; stroke: #1d2327; stroke-width: 3; }
-.node.on-path .ring.path { display: block; stroke: #a63f00; stroke-width: 3; }
+.node.selected .ring.sel { display: block; stroke: #0A0A0A; stroke-width: 3; }
+.node.on-path .ring.path { display: block; stroke: #A63F00; stroke-width: 3; }
 .node.is-root .ring.path { stroke-width: 5; }
 .node .tag { display: none; font-size: 10px; font-weight: 700; }
-.node.is-root .tag.root, .node.is-unknown .tag.unk { display: block; fill: #1d2327; }
+.node.is-root .tag.root, .node.is-unknown .tag.unk { display: block; fill: #0A0A0A; }
 .tracing .node:not(.on-path):not(.is-unknown):not(.selected) { opacity: .4; }
 .node:focus-visible rect.body { stroke: var(--focus); stroke-width: 4; }
 
-.pill { display: inline-block; padding: 0 8px; border-radius: 10px; border: 1px solid var(--line); font-size: 12px; background: #f1f3f5; }
-dl.kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 0; font-size: 13px; }
+.pill { display: inline-block; padding: 2px 10px; border-radius: 999px; border: 1px solid transparent; font-size: 12px; font-weight: 600; background: var(--blue-soft); color: #0B2E7A; }
+.pill.ok { background: var(--ok-soft); color: var(--ok); }
+.pill.plain { background: var(--bg); color: var(--muted); border-color: var(--line); }
+dl.kv { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; margin: 0; font-size: 13px; }
 dl.kv dt { color: var(--muted); }
 dl.kv dd { margin: 0; }
 
 table { border-collapse: collapse; width: 100%; font-size: 13px; }
-th, td { text-align: left; vertical-align: top; padding: 5px 8px; border-bottom: 1px solid var(--line); }
-th { color: var(--muted); font-weight: 600; background: #f7f8f9; }
-.tablewrap { overflow-x: auto; }
+th, td { text-align: left; vertical-align: top; padding: 7px 10px; border-bottom: 1px solid var(--line); }
+th { color: var(--muted); font-weight: 600; font-size: 11px; letter-spacing: .05em; text-transform: uppercase; background: #F8FAFD; white-space: nowrap; }
+tbody tr:hover td { background: #FAFBFE; }
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.tablewrap tr:last-child td { border-bottom: none; }
 td.words { min-width: 160px; }
-pre { margin: 0; white-space: pre-wrap; word-break: break-word; font-size: 12px; background: #f4f5f6; padding: 8px; border-radius: 6px; max-height: 240px; overflow: auto; }
-details > summary { cursor: pointer; padding: 4px 0; font-weight: 600; }
-.finding .statement { font-size: 16px; margin: 6px 0; }
-.finding .controls { display: grid; gap: 8px; margin-top: 10px; }
+pre { margin: 0; white-space: pre-wrap; word-break: break-word; font: 12px/1.5 ui-monospace, "Cascadia Mono", Consolas, monospace; background: #F5F7FB; border: 1px solid var(--line); padding: 10px; border-radius: var(--radius-sm); max-height: 240px; overflow: auto; }
+details > summary { cursor: pointer; padding: 6px 0; font-weight: 600; color: var(--accent); }
+details[open] > summary { margin-bottom: 6px; }
+.finding .statement, .note-text { font-size: 17px; line-height: 1.5; margin: 10px 0; max-width: 80ch; }
+.finding .controls { display: grid; gap: 10px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
 .rtl { direction: rtl; text-align: right; }
-.steps li { margin: 2px 0; }
-.status-running { color: #7a5f00; font-weight: 700; }
+.steps li { margin: 3px 0; }
+.status-running { color: var(--warn); font-weight: 700; }
 .status-waiting_for_teacher { color: var(--accent); font-weight: 700; }
 .status-done { color: var(--ok); font-weight: 700; }
 .status-failed { color: var(--bad); font-weight: 700; }
+.section-title { margin: 22px 0 10px; }
 
 @media (max-width: 1100px) {
   .map-cols { grid-template-columns: 1fr; }
   #detail { position: static; max-height: none; }
 }
 @media (max-width: 800px) {
-  .layout { grid-template-columns: 1fr; padding: 12px; }
+  .layout { grid-template-columns: 1fr; padding: 16px; gap: 16px; }
   #rail { position: static; max-height: 220px; }
-  header.top { padding: 10px 12px; }
+  header.top { padding: 12px 16px; }
+  .brand .sub { display: none; }
+  h2 { font-size: 20px; }
 }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
 <body>
 <header class="top">
-  <div>
-    <h1>Meska Brain</h1>
-    <div class="sub">A cited learning map. Patterns to check, decided by a named teacher.</div>
+  <div class="brand">
+    <img src="/static/brand/meska-white.png" alt="meska.Ai" width="137" height="24">
+    <div class="product">
+      <h1>Meska Brain</h1>
+      <div class="sub">A cited learning map. Patterns to check, decided by a named teacher.</div>
+    </div>
   </div>
   <div class="who">
     <label for="teacher">Signed in as</label>
@@ -186,7 +228,7 @@ details > summary { cursor: pointer; padding: 4px 0; font-weight: 600; }
   <main>
     <nav class="tabs" id="tabs" aria-label="Sections"></nav>
     <div id="view"></div>
-    <p class="small muted" style="margin-top:24px">
+    <p class="small muted foot">
       Learners appear by alias only. Nothing on this page ranks or compares learners. Every finding shows the records it rests on.
     </p>
   </main>
@@ -352,7 +394,7 @@ function pickLearner(id) {
   show(state.view);
 }
 
-const TABS = [["map", "Map"], ["patterns", "Patterns"], ["review", "Review queue"], ["agent", "Agent"], ["audit", "Audit log"]];
+const TABS = [["map", "Map"], ["patterns", "Patterns"], ["review", "Review queue"], ["approved", "Approved"], ["agent", "Agent"], ["audit", "Audit log"]];
 function drawTabs() {
   const nav = clear(document.getElementById("tabs"));
   for (const [id, name] of TABS) {
@@ -375,7 +417,7 @@ function show(view) {
   history.replaceState(null, "", "#" + state.view);
   drawTabs();
   const root = clear(document.getElementById("view"));
-  const fn = { map: viewMap, patterns: viewPatterns, review: viewReview, agent: viewAgent, audit: viewAudit }[state.view];
+  const fn = { map: viewMap, patterns: viewPatterns, review: viewReview, approved: viewApproved, agent: viewAgent, audit: viewAudit }[state.view];
   Promise.resolve(fn(root)).catch((e) => root.append(h("p", { class: "err", role: "alert", text: e.message })));
 }
 
@@ -736,9 +778,9 @@ async function viewReview(root) {
   root.append(h("h2", { text: "Review queue" }),
     h("p", { class: "muted", text: "Proposals wait here until a named teacher decides. Choose your name at the top first. Approving, editing or rejecting is recorded with your name." }));
   if (!p.findings.length && !p.summaries.length) root.append(h("p", { class: "empty card", text: "Nothing is waiting for review." }));
-  if (p.findings.length) root.append(h("h3", { style: "margin:14px 0 8px", text: "Proposed findings (" + p.findings.length + ")" }));
+  if (p.findings.length) root.append(h("h3", { class: "section-title", text: "Proposed findings (" + p.findings.length + ")" }));
   for (const f of p.findings) root.append(findingCard(f));
-  if (p.summaries.length) root.append(h("h3", { style: "margin:18px 0 8px", text: "Drafted summaries (" + p.summaries.length + ")" }));
+  if (p.summaries.length) root.append(h("h3", { class: "section-title", text: "Drafted summaries (" + p.summaries.length + ")" }));
   for (const sm of p.summaries) root.append(summaryCard(sm));
 }
 
@@ -815,6 +857,51 @@ function summaryCard(sm) {
       h("div", { class: "row" }, approve, reject)),
     msg);
   return card;
+}
+
+// ---------------------------------------------------------------- approved
+// What a named teacher has already approved for this learner: the findings, and the notes built from them.
+async function viewApproved(root) {
+  if (!state.learnerId) { root.append(h("p", { class: "empty", text: "No learners yet." })); return; }
+  const lid = encodeURIComponent(state.learnerId);
+  await getGraph(state.learnerId).catch(() => null);
+  const [fr, sr] = await Promise.all([api("/api/findings?learner_id=" + lid), api("/api/summaries?learner_id=" + lid)]);
+  const findings = fr.findings.filter((f) => f.status === "approved" || f.status === "edited");
+  const notes = sr.summaries.filter((x) => x.status === "approved");
+  const teacherName = (id) => (state.teachers.find((t) => t.id === id) || {}).name || id || "a teacher";
+  const when = (iso) => (iso || "").slice(0, 10);
+  clear(root);
+  root.append(h("h2", { text: "Approved for " + aliasOf(state.learnerId) }),
+    h("p", { class: "muted", text: "Only what a named teacher has approved appears here. Each item shows who approved it and the records it rests on." }));
+
+  root.append(h("h3", { class: "section-title", text: "Notes (" + notes.length + ")" }));
+  if (!notes.length) root.append(h("p", { class: "empty card", text: "No note has been approved for this learner yet." }));
+  for (const n of notes) {
+    const rtl = RTL.has(n.language);
+    const copied = h("span", { class: "small muted", "aria-live": "polite" });
+    const copy = h("button", { type: "button", onclick: async () => {
+      try { await navigator.clipboard.writeText(n.text); copied.textContent = "Copied."; }
+      catch (e) { copied.textContent = "Could not copy. Select the text instead."; }
+    } }, "Copy text");
+    root.append(h("article", { class: "card", "aria-label": "Approved note" },
+      h("div", { class: "row" },
+        h("span", { class: "pill", text: n.audience === "guardian" ? "For the learner's guardian" : "Handover for the next teacher" }),
+        h("span", { class: "pill plain", text: langName(n.language) }),
+        h("span", { class: "pill ok", text: "Approved by " + teacherName(n.decided_by) + (n.decided_at ? " on " + when(n.decided_at) : "") })),
+      h("p", { class: "note-text" + (rtl ? " rtl" : ""), lang: n.language, dir: rtl ? "rtl" : "auto", text: n.text }),
+      h("div", { class: "row" }, copy, copied)));
+  }
+
+  root.append(h("h3", { class: "section-title", text: "Findings (" + findings.length + ")" }));
+  if (!findings.length) root.append(h("p", { class: "empty card", text: "No finding has been approved for this learner yet." }));
+  for (const f of findings) {
+    root.append(h("article", { class: "card finding", "aria-label": "Approved finding" },
+      h("div", { class: "row" },
+        h("span", { class: "pill", text: KIND[f.kind] || f.kind }),
+        h("span", { class: "pill ok", text: (f.status === "edited" ? "Edited and approved by " : "Approved by ") + teacherName(f.decided_by) + (f.decided_at ? " on " + when(f.decided_at) : "") })),
+      h("p", { class: "statement", text: f.statement }),
+      h("details", {}, h("summary", { text: "Evidence behind this (" + f.evidence.length + " records)" }), evidenceTable(f.evidence))));
+  }
 }
 
 // ---------------------------------------------------------------- agent
