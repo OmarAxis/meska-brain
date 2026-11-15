@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "meska-teacher-app",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": ["run", "meska", "demo"],
+      "port": 8765
+    }
+  ]
+}

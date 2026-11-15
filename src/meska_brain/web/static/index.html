@@ -1,0 +1,951 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meska Brain: learning map</title>
+<style>
+:root {
+  --bg: #f5f6f4;
+  --panel: #ffffff;
+  --ink: #1d2327;
+  --muted: #4d565e;
+  --line: #d3d8dc;
+  --accent: #1f5f99;
+  --accent-ink: #ffffff;
+  --focus: #b34700;
+  --ok: #1d6b3a;
+  --bad: #9c2b12;
+  --strong-fill: #1f5f99;
+  --strong-ink: #ffffff;
+  --shaky-fill: #f6e3a1;
+  --shaky-line: #7a5f00;
+  --gap-fill: #f5c9ae;
+  --gap-line: #a63f00;
+  --unseen-line: #6b727a;
+  --radius: 8px;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body {
+  font: 15px/1.5 system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: var(--ink); background: var(--bg);
+}
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+button, select, input, textarea { font: inherit; color: inherit; }
+button {
+  cursor: pointer; border: 1px solid var(--line); background: #fff; border-radius: 6px;
+  padding: 6px 12px; min-height: 36px;
+}
+button:hover { background: #eef2f5; }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+button.primary:hover { background: #184c7b; }
+button.danger { border-color: var(--bad); color: var(--bad); }
+button.danger:hover { background: #fbeeea; }
+button:disabled { opacity: .55; cursor: not-allowed; }
+select, input[type=text], textarea {
+  border: 1px solid #8b949b; border-radius: 6px; padding: 6px 8px; background: #fff; min-height: 36px;
+}
+textarea { width: 100%; min-height: 70px; resize: vertical; }
+label { font-weight: 600; font-size: 13px; color: var(--muted); }
+h1, h2, h3 { line-height: 1.25; margin: 0; }
+h2 { font-size: 18px; }
+h3 { font-size: 15px; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+header.top {
+  display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between;
+  padding: 10px 20px; background: #fff; border-bottom: 1px solid var(--line);
+}
+header.top h1 { font-size: 19px; }
+header.top .sub { font-size: 13px; color: var(--muted); }
+.who { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.who .note { font-size: 12px; color: var(--muted); max-width: 320px; }
+
+.layout { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 16px; padding: 16px 20px; align-items: start; }
+#rail { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px; position: sticky; top: 8px; max-height: calc(100vh - 16px); overflow: auto; }
+#rail h2 { font-size: 14px; color: var(--muted); padding: 2px 6px 8px; }
+#rail ul { list-style: none; margin: 0; padding: 0; }
+#rail button { width: 100%; text-align: left; border: 1px solid transparent; background: transparent; display: flex; justify-content: space-between; gap: 8px; padding: 6px 8px; }
+#rail button:hover { background: #eef2f5; }
+#rail button[aria-current=true] { background: #e3edf6; border-color: var(--accent); font-weight: 600; }
+#rail .grade { color: var(--muted); font-size: 13px; white-space: nowrap; }
+
+nav.tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 2px solid var(--line); margin-bottom: 14px; }
+nav.tabs button { border: none; border-bottom: 3px solid transparent; border-radius: 6px 6px 0 0; background: transparent; padding: 8px 14px; margin-bottom: -2px; }
+nav.tabs button[aria-current=page] { border-bottom-color: var(--accent); font-weight: 700; }
+.badge { display: inline-block; min-width: 20px; padding: 0 6px; margin-left: 6px; border-radius: 10px; background: var(--accent); color: #fff; font-size: 12px; text-align: center; }
+
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; }
+.card + .card { margin-top: 12px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.stack > * + * { margin-top: 10px; }
+.err { color: var(--bad); font-weight: 600; }
+.okmsg { color: var(--ok); font-weight: 600; }
+.empty { padding: 20px; color: var(--muted); }
+
+/* Map */
+.map-top { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 20px; align-items: flex-end; margin-bottom: 10px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; list-style: none; margin: 0; padding: 0; font-size: 13px; }
+.legend li { display: flex; align-items: center; gap: 6px; }
+.map-cols { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 14px; align-items: start; }
+.mapbox { overflow: auto; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); max-height: 72vh; }
+.replay { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-bottom: 10px; }
+.replay input[type=range] { flex: 1 1 220px; min-width: 160px; min-height: 28px; }
+#detail { position: sticky; top: 8px; max-height: calc(100vh - 16px); overflow: auto; }
+
+svg text { font-family: inherit; }
+.lane-bg { fill: #f7f8f9; }
+.lane-bg.alt { fill: #ffffff; }
+.lane-label { font-size: 12px; font-weight: 700; fill: #2b333a; }
+.grade-label { font-size: 12px; font-weight: 700; fill: #2b333a; }
+.edge { fill: none; stroke: #8a949c; stroke-width: 1; opacity: .55; }
+.edge.hl { stroke: #1d2327; stroke-width: 2; opacity: 1; }
+.edge.tp { stroke: #a63f00; stroke-width: 3.5; opacity: 1; }
+.tracing .edge:not(.tp) { opacity: .15; }
+.node { cursor: pointer; }
+.node rect.body { stroke-width: 1.5; }
+.node text { font-size: 11px; pointer-events: none; }
+.s-strong rect.body { fill: var(--strong-fill); stroke: #123e66; stroke-width: 2; }
+.s-strong text { fill: var(--strong-ink); }
+.s-shaky rect.body { fill: var(--shaky-fill); stroke: var(--shaky-line); stroke-width: 1.5; }
+.s-shaky text { fill: #2f2500; }
+.s-gap rect.body { fill: url(#hatch); stroke: var(--gap-line); stroke-width: 3; }
+.s-gap text { fill: #3a1600; font-weight: 600; }
+.s-unseen rect.body { fill: #fff; stroke: var(--unseen-line); stroke-width: 1.5; stroke-dasharray: 3 3; }
+.s-unseen text { fill: #4d565e; }
+.node:not(.s-strong) .m-strong, .node:not(.s-shaky) .m-shaky, .node:not(.s-gap) .m-gap, .node:not(.s-unseen) .m-unseen { display: none; }
+.m-strong { fill: #fff; }
+.m-shaky { fill: #7a5f00; }
+.m-gap { fill: #a63f00; }
+.m-unseen { fill: none; stroke: #6b727a; stroke-width: 1.5; stroke-dasharray: 2 2; }
+.ring { display: none; fill: none; }
+.node.selected .ring.sel { display: block; stroke: #1d2327; stroke-width: 3; }
+.node.on-path .ring.path { display: block; stroke: #a63f00; stroke-width: 3; }
+.node.is-root .ring.path { stroke-width: 5; }
+.node .tag { display: none; font-size: 10px; font-weight: 700; }
+.node.is-root .tag.root, .node.is-unknown .tag.unk { display: block; fill: #1d2327; }
+.tracing .node:not(.on-path):not(.is-unknown):not(.selected) { opacity: .4; }
+.node:focus-visible rect.body { stroke: var(--focus); stroke-width: 4; }
+
+.pill { display: inline-block; padding: 0 8px; border-radius: 10px; border: 1px solid var(--line); font-size: 12px; background: #f1f3f5; }
+dl.kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 0; font-size: 13px; }
+dl.kv dt { color: var(--muted); }
+dl.kv dd { margin: 0; }
+
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; vertical-align: top; padding: 5px 8px; border-bottom: 1px solid var(--line); }
+th { color: var(--muted); font-weight: 600; background: #f7f8f9; }
+.tablewrap { overflow-x: auto; }
+td.words { min-width: 160px; }
+pre { margin: 0; white-space: pre-wrap; word-break: break-word; font-size: 12px; background: #f4f5f6; padding: 8px; border-radius: 6px; max-height: 240px; overflow: auto; }
+details > summary { cursor: pointer; padding: 4px 0; font-weight: 600; }
+.finding .statement { font-size: 16px; margin: 6px 0; }
+.finding .controls { display: grid; gap: 8px; margin-top: 10px; }
+.rtl { direction: rtl; text-align: right; }
+.steps li { margin: 2px 0; }
+.status-running { color: #7a5f00; font-weight: 700; }
+.status-waiting_for_teacher { color: var(--accent); font-weight: 700; }
+.status-done { color: var(--ok); font-weight: 700; }
+.status-failed { color: var(--bad); font-weight: 700; }
+
+@media (max-width: 1100px) {
+  .map-cols { grid-template-columns: 1fr; }
+  #detail { position: static; max-height: none; }
+}
+@media (max-width: 800px) {
+  .layout { grid-template-columns: 1fr; padding: 12px; }
+  #rail { position: static; max-height: 220px; }
+  header.top { padding: 10px 12px; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div>
+    <h1>Meska Brain</h1>
+    <div class="sub">A cited learning map. Patterns to check, decided by a named teacher.</div>
+  </div>
+  <div class="who">
+    <label for="teacher">Signed in as</label>
+    <select id="teacher"><option value="">Choose your name</option></select>
+    <span class="note">There is no password here. This only records who made each decision.</span>
+  </div>
+</header>
+
+<div class="layout">
+  <aside id="rail" aria-label="Learners">
+    <h2>Learners (by alias)</h2>
+    <ul id="learner-list"></ul>
+  </aside>
+
+  <main>
+    <nav class="tabs" id="tabs" aria-label="Sections"></nav>
+    <div id="view"></div>
+    <p class="small muted" style="margin-top:24px">
+      Learners appear by alias only. Nothing on this page ranks or compares learners. Every finding shows the records it rests on.
+    </p>
+  </main>
+</div>
+
+<script>
+"use strict";
+
+// ---------------------------------------------------------------- helpers
+const SVGNS = "http://www.w3.org/2000/svg";
+
+function h(tag, props, ...kids) {
+  const el = document.createElement(tag);
+  fill(el, props, kids);
+  return el;
+}
+function s(tag, props, ...kids) {
+  const el = document.createElementNS(SVGNS, tag);
+  fill(el, props, kids);
+  return el;
+}
+function fill(el, props, kids) {
+  for (const [k, v] of Object.entries(props || {})) {
+    if (v === null || v === undefined || v === false) continue;
+    if (k === "text") el.textContent = v;
+    else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else if (k === "class") el.setAttribute("class", v);
+    else el.setAttribute(k, v === true ? "" : v);
+  }
+  for (const kid of kids.flat()) {
+    if (kid === null || kid === undefined || kid === false) continue;
+    el.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
+  }
+}
+function clear(el) { while (el.firstChild) el.removeChild(el.firstChild); return el; }
+
+async function api(path, opts) {
+  let res;
+  try {
+    res = await fetch(path, opts);
+  } catch (e) {
+    throw new Error("Could not reach the Meska Brain server. Is it still running?");
+  }
+  let body = null;
+  try { body = await res.json(); } catch (e) { /* not json */ }
+  if (!res.ok) {
+    const msg = body && (body.error || (body.detail && JSON.stringify(body.detail))) || ("Request failed (" + res.status + ")");
+    const err = new Error(msg);
+    err.status = res.status;
+    throw err;
+  }
+  return body;
+}
+function post(path, data) {
+  return api(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+}
+function store(key, value) {
+  try { if (value === undefined) return localStorage.getItem(key); localStorage.setItem(key, value); } catch (e) { return null; }
+  return null;
+}
+
+const LANGS = { en: "English", ar: "Arabic", sw: "Swahili", fr: "French", am: "Amharic", ha: "Hausa", yo: "Yoruba", so: "Somali", fa: "Persian", ur: "Urdu", he: "Hebrew" };
+const RTL = new Set(["ar", "fa", "ur", "he"]);
+const langName = (c) => LANGS[c] || c;
+const pct = (x) => (x === null || x === undefined ? "n/a" : Math.round(x * 100) + "%");
+function confWords(c) {
+  if (c === null || c === undefined) return "Confidence not stated";
+  if (c < 0.35) return "Low confidence: treat as a question to check";
+  if (c < 0.65) return "Medium confidence";
+  return "Higher confidence";
+}
+const KIND = { root_cause: "Where it may have started", strength: "A strength pattern", struggle: "A struggle pattern", what_worked: "What seems to have helped" };
+const KIND_EV = { quiz_item: "Quiz item", assignment: "Assignment", project: "Project", observation: "Teacher note", attendance: "Attendance" };
+const STATE_WORDS = {
+  strong: "Scores mostly secure so far",
+  shaky: "Still forming: mixed scores",
+  gap: "Low scores so far",
+  unseen: "No records yet"
+};
+
+const state = {
+  learners: [], teachers: [], learnerId: null, view: "map",
+  graphs: {}, labels: {}, pendingCount: 0,
+  sel: null, trace: null, periodIdx: 0, timer: null, runTimer: null, runId: null,
+};
+const aliasOf = (id) => (state.learners.find((l) => l.learner_id === id) || {}).alias || id;
+const labelOf = (id) => state.labels[id] || (id || "").replace(/-/g, " ");
+
+async function getGraph(lid) {
+  if (!state.graphs[lid]) {
+    state.graphs[lid] = await api("/api/learners/" + encodeURIComponent(lid) + "/graph");
+    for (const n of state.graphs[lid].nodes) state.labels[n.id] = n.label;
+  }
+  return state.graphs[lid];
+}
+function teacherId() { return document.getElementById("teacher").value; }
+function stopTimers() {
+  if (state.timer) { clearInterval(state.timer); state.timer = null; }
+  if (state.runTimer) { clearInterval(state.runTimer); state.runTimer = null; }
+}
+
+// ---------------------------------------------------------------- evidence table
+function evidenceTable(rows) {
+  if (!rows || !rows.length) return h("p", { class: "muted", text: "No records." });
+  const body = rows.map((r) => {
+    const words = r.raw_text
+      ? h("span", { lang: r.language || "en", dir: "auto", text: r.raw_text })
+      : h("span", { class: "muted", text: r.kind === "attendance" ? (r.absent_days + " day(s) absent") : "no words recorded" });
+    return h("tr", {},
+      h("td", { text: db_period(r) }),
+      h("td", { text: KIND_EV[r.kind] || r.kind }),
+      h("td", { text: r.concept_id ? labelOf(r.concept_id) : "" }),
+      h("td", { text: r.score === null || r.score === undefined ? "" : pct(r.score) }),
+      h("td", { class: "words" }, words, r.language && r.language !== "en" ? h("span", { class: "muted small", text: " (" + langName(r.language) + ")" }) : null),
+      h("td", { text: r.source_ref }),
+      h("td", { class: "small muted", text: r.id + (r.status === "needs_review" ? " (needs review)" : "") }));
+  });
+  return h("div", { class: "tablewrap" }, h("table", {},
+    h("thead", {}, h("tr", {}, ["Period", "Type", "Concept", "Score", "Teacher's words", "Source", "Record"].map((t) => h("th", { scope: "col", text: t })))),
+    h("tbody", {}, body)));
+}
+function db_period(r) { return r.year + "-T" + r.term; }
+
+// ---------------------------------------------------------------- learners and tabs
+async function init() {
+  try {
+    const [l, t] = await Promise.all([api("/api/learners"), api("/api/teachers")]);
+    state.learners = l.learners;
+    state.teachers = t.teachers;
+  } catch (e) {
+    document.getElementById("view").append(h("p", { class: "err", text: e.message }));
+    return;
+  }
+  const sel = document.getElementById("teacher");
+  for (const t of state.teachers) sel.append(h("option", { value: t.id, text: t.name }));
+  const saved = store("meska.teacher");
+  if (saved && state.teachers.some((t) => t.id === saved)) sel.value = saved;
+  sel.addEventListener("change", () => store("meska.teacher", sel.value));
+  drawRail();
+  const savedLearner = store("meska.learner");
+  const first = state.learners.find((l) => l.learner_id === savedLearner) || state.learners[0];
+  if (first) state.learnerId = first.learner_id;
+  drawRail();
+  refreshPending();
+  show(location.hash.slice(1) || "map");
+}
+
+function drawRail() {
+  const ul = clear(document.getElementById("learner-list"));
+  for (const l of state.learners) {
+    ul.append(h("li", {}, h("button", {
+      type: "button", "aria-current": l.learner_id === state.learnerId ? "true" : "false",
+      onclick: () => pickLearner(l.learner_id),
+    }, h("span", { text: l.alias }), h("span", { class: "grade", text: "Grade " + l.grade_now }))));
+  }
+}
+function pickLearner(id) {
+  if (id === state.learnerId) return;
+  state.learnerId = id;
+  store("meska.learner", id);
+  state.sel = null; state.trace = null;
+  drawRail();
+  show(state.view);
+}
+
+const TABS = [["map", "Map"], ["patterns", "Patterns"], ["review", "Review queue"], ["agent", "Agent"], ["audit", "Audit log"]];
+function drawTabs() {
+  const nav = clear(document.getElementById("tabs"));
+  for (const [id, name] of TABS) {
+    nav.append(h("button", {
+      type: "button", "aria-current": id === state.view ? "page" : "false",
+      onclick: () => show(id),
+    }, name, id === "review" && state.pendingCount ? h("span", { class: "badge", text: state.pendingCount, "aria-label": state.pendingCount + " waiting" }) : null));
+  }
+}
+async function refreshPending() {
+  try {
+    const p = await api("/api/review/pending");
+    state.pendingCount = p.findings.length + p.summaries.length;
+    drawTabs();
+  } catch (e) { /* the badge is a convenience */ }
+}
+function show(view) {
+  stopTimers();
+  state.view = TABS.some((t) => t[0] === view) ? view : "map";
+  history.replaceState(null, "", "#" + state.view);
+  drawTabs();
+  const root = clear(document.getElementById("view"));
+  const fn = { map: viewMap, patterns: viewPatterns, review: viewReview, agent: viewAgent, audit: viewAudit }[state.view];
+  Promise.resolve(fn(root)).catch((e) => root.append(h("p", { class: "err", role: "alert", text: e.message })));
+}
+
+// ---------------------------------------------------------------- the map
+const NODE_W = 138, NODE_H = 40, PITCH_X = 176, PITCH_Y = 56, LEFT = 128, TOP = 34, LANE_PAD = 10;
+
+function wrap(text, max) {
+  const words = text.split(/\s+/), lines = [];
+  let cur = "";
+  for (const w of words) {
+    if ((cur + " " + w).trim().length <= max) cur = (cur + " " + w).trim();
+    else { if (cur) lines.push(cur); cur = w; }
+  }
+  if (cur) lines.push(cur);
+  if (lines.length > 2) {
+    lines.length = 2;
+    lines[1] = lines[1].slice(0, max - 1).replace(/\s+\S*$/, "") + "…";
+  }
+  return lines;
+}
+
+function layout(g) {
+  const concepts = g.nodes.filter((n) => n.type === "concept");
+  const grades = [...new Set(concepts.map((n) => n.grade))].sort((a, b) => a - b);
+  const strandNodes = g.nodes.filter((n) => n.type === "strand");
+  const strands = strandNodes.map((n) => n.id).filter((sid) => concepts.some((c) => c.strand === sid));
+  for (const c of concepts) if (!strands.includes(c.strand)) strands.push(c.strand);
+  const cell = {};
+  for (const c of concepts) {
+    const k = c.strand + "|" + c.grade;
+    (cell[k] = cell[k] || []).push(c);
+  }
+  const pos = {}, lanes = [];
+  let y = TOP;
+  for (const sid of strands) {
+    let rows = 1;
+    for (const gr of grades) rows = Math.max(rows, (cell[sid + "|" + gr] || []).length);
+    const height = rows * PITCH_Y + LANE_PAD * 2;
+    lanes.push({ id: sid, y, height, label: labelOf(sid) });
+    for (const [gi, gr] of grades.entries()) {
+      (cell[sid + "|" + gr] || []).forEach((c, ri) => {
+        pos[c.id] = { x: LEFT + gi * PITCH_X, y: y + LANE_PAD + ri * PITCH_Y, col: gi };
+      });
+    }
+    y += height;
+  }
+  return { grades, lanes, pos, width: LEFT + grades.length * PITCH_X, height: y + 8 };
+}
+
+function stateFor(g, cid) {
+  const last = g.periods.length - 1;
+  const node = g.byId[cid];
+  if (state.periodIdx >= last || last < 0) return node.state;
+  const m = (g.timeline[g.periods[state.periodIdx]] || {})[cid];
+  if (m === undefined || m === null) return "unseen";
+  if (m > g.thresholds.strong_above) return "strong";
+  if (m < g.thresholds.gap_below) return "gap";
+  return "shaky";
+}
+
+async function viewMap(root) {
+  if (!state.learnerId) { root.append(h("p", { class: "empty", text: "No learners yet." })); return; }
+  root.append(h("p", { class: "muted", text: "Loading the map..." }));
+  const g = await getGraph(state.learnerId);
+  g.byId = Object.fromEntries(g.nodes.map((n) => [n.id, n]));
+  const lastIdx = g.periods.length - 1;
+  state.periodIdx = Math.max(0, lastIdx);
+  const L = layout(g);
+  const concepts = g.nodes.filter((n) => n.type === "concept");
+  const reqEdges = g.edges.filter((e) => e.type === "requires" && L.pos[e.source] && L.pos[e.target]);
+
+  // legend
+  const legendItem = (st, text) => h("li", {}, legendSwatch(st), h("span", { text }));
+  const legend = h("ul", { class: "legend", "aria-label": "Legend" },
+    legendItem("strong", "Scores mostly secure so far"),
+    legendItem("shaky", "Still forming: mixed scores"),
+    legendItem("gap", "Low scores so far"),
+    legendItem("unseen", "No records yet (not the same as struggling)"));
+
+  // svg
+  const svg = s("svg", { id: "mapsvg", role: "group", "aria-label": "Curriculum map for " + g.learner.alias + ". Columns are grades, rows are strands.", width: L.width, height: L.height, viewBox: "0 0 " + L.width + " " + L.height });
+  svg.append(s("defs", {},
+    s("pattern", { id: "hatch", width: 8, height: 8, patternUnits: "userSpaceOnUse", patternTransform: "rotate(45)" },
+      s("rect", { width: 8, height: 8, fill: "#f9dcc8" }), s("rect", { width: 3, height: 8, fill: "#eeb08a" })),
+    s("marker", { id: "arrow", viewBox: "0 0 8 8", refX: 7, refY: 4, markerWidth: 6, markerHeight: 6, orient: "auto" },
+      s("path", { d: "M0,0 L8,4 L0,8 z", fill: "#59636b" }))));
+  L.lanes.forEach((ln, i) => {
+    svg.append(s("rect", { class: "lane-bg" + (i % 2 ? " alt" : ""), x: 0, y: ln.y, width: L.width, height: ln.height }));
+    const lines = wrap(ln.label, 16);
+    const t = s("text", { class: "lane-label", x: 8, y: ln.y + LANE_PAD + 16 });
+    lines.forEach((ln2, k) => t.append(s("tspan", { x: 8, dy: k ? 15 : 0, text: ln2 })));
+    svg.append(t);
+  });
+  L.grades.forEach((gr, gi) => svg.append(s("text", { class: "grade-label", x: LEFT + gi * PITCH_X + NODE_W / 2, y: 20, "text-anchor": "middle", text: "Grade " + gr })));
+
+  const edgeEls = [];
+  const edgeLayer = s("g", { id: "edges" });
+  for (const e of reqEdges) {
+    const a = L.pos[e.source], b = L.pos[e.target];
+    let d;
+    if (a.col === b.col) {
+      const x = a.x, y1 = a.y + NODE_H / 2, y2 = b.y + NODE_H / 2;
+      d = "M" + x + "," + y1 + " C" + (x - 34) + "," + y1 + " " + (x - 34) + "," + y2 + " " + (x - 2) + "," + y2;
+    } else {
+      const x1 = a.x + NODE_W, y1 = a.y + NODE_H / 2, x2 = b.x - 2, y2 = b.y + NODE_H / 2;
+      const dx = Math.max(30, (x2 - x1) / 2);
+      d = "M" + x1 + "," + y1 + " C" + (x1 + dx) + "," + y1 + " " + (x2 - dx) + "," + y2 + " " + x2 + "," + y2;
+    }
+    const p = s("path", { class: "edge", d, "marker-end": "url(#arrow)" });
+    edgeLayer.append(p);
+    edgeEls.push({ el: p, source: e.source, target: e.target });
+  }
+  svg.append(edgeLayer);
+
+  const nodeEls = {};
+  for (const c of concepts) {
+    const p = L.pos[c.id];
+    if (!p) continue;
+    const grp = s("g", { class: "node", transform: "translate(" + p.x + "," + p.y + ")", tabindex: 0, role: "button", "data-id": c.id });
+    grp.append(s("title", { text: c.label }));
+    grp.append(s("rect", { class: "body", width: NODE_W, height: NODE_H, rx: 8 }));
+    grp.append(s("rect", { class: "ring sel", x: -4, y: -4, width: NODE_W + 8, height: NODE_H + 8, rx: 11 }));
+    grp.append(s("rect", { class: "ring path", x: -3, y: -3, width: NODE_W + 6, height: NODE_H + 6, rx: 10 }));
+    grp.append(s("circle", { class: "m-strong", cx: 13, cy: NODE_H / 2, r: 5.5 }));
+    grp.append(s("path", { class: "m-shaky", d: "M13,14 a6,6 0 0 1 0,12 z" }));
+    grp.append(s("path", { class: "m-gap", d: "M13,14 l6,12 h-12 z" }));
+    grp.append(s("circle", { class: "m-unseen", cx: 13, cy: NODE_H / 2, r: 5.5 }));
+    const lines = wrap(c.label, 19);
+    const t = s("text", { x: 25, y: lines.length > 1 ? 16 : 24 });
+    lines.forEach((ln, k) => t.append(s("tspan", { x: 25, dy: k ? 13 : 0, text: ln })));
+    grp.append(t);
+    grp.append(s("text", { class: "tag root", x: 0, y: -4, text: "START POINT TO CHECK" }));
+    grp.append(s("text", { class: "tag unk", x: NODE_W - 4, y: -4, "text-anchor": "end", text: "no records" }));
+    grp.addEventListener("click", () => selectNode(c.id));
+    grp.addEventListener("keydown", (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); selectNode(c.id); } });
+    svg.append(grp);
+    nodeEls[c.id] = grp;
+  }
+
+  const detail = h("aside", { id: "detail", class: "card", "aria-live": "polite", "aria-label": "Concept details" });
+  const rangeId = "term-range";
+  const slider = h("input", { type: "range", id: rangeId, min: 0, max: Math.max(0, lastIdx), step: 1, value: state.periodIdx, disabled: lastIdx < 1 });
+  const periodLabel = h("span", { class: "small", id: "period-label" });
+  const playBtn = h("button", { type: "button", "aria-pressed": "false", disabled: lastIdx < 1 }, "Play");
+
+  function paint() {
+    const tracing = !!state.trace;
+    svg.classList.toggle("tracing", tracing);
+    const onPath = new Set(tracing ? state.trace.path : []);
+    const unknown = new Set(tracing ? state.trace.unknowns : []);
+    const rootId = tracing && state.trace.root ? state.trace.root.concept_id : null;
+    for (const c of concepts) {
+      const el = nodeEls[c.id];
+      if (!el) continue;
+      const st = stateFor(g, c.id);
+      el.setAttribute("class", "node s-" + st + (state.sel === c.id ? " selected" : "") + (onPath.has(c.id) ? " on-path" : "") + (c.id === rootId ? " is-root" : "") + (unknown.has(c.id) ? " is-unknown" : ""));
+      el.setAttribute("aria-label", c.label + ", grade " + c.grade + ". " + STATE_WORDS[st] + (c.id === rootId ? ". Possible starting point." : "") + (unknown.has(c.id) ? ". No records." : ""));
+      el.setAttribute("aria-pressed", state.sel === c.id ? "true" : "false");
+    }
+    const pathPairs = new Set();
+    if (tracing) for (let i = 0; i + 1 < state.trace.path.length; i++) pathPairs.add(state.trace.path[i + 1] + ">" + state.trace.path[i]);
+    for (const e of edgeEls) {
+      const tp = pathPairs.has(e.source + ">" + e.target);
+      const hl = !tracing && state.sel && (e.source === state.sel || e.target === state.sel);
+      e.el.setAttribute("class", "edge" + (tp ? " tp" : "") + (hl ? " hl" : ""));
+    }
+    const per = g.periods[state.periodIdx];
+    periodLabel.textContent = lastIdx < 0 ? "No dated records yet" : (state.periodIdx >= lastIdx ? "All records up to " + per : "Records up to " + per);
+    slider.value = state.periodIdx;
+    slider.setAttribute("aria-valuetext", periodLabel.textContent);
+  }
+
+  function selectNode(cid) {
+    if (state.sel !== cid) state.trace = null;
+    state.sel = cid;
+    paint();
+    drawDetail(detail, g, cid, paint);
+  }
+
+  slider.addEventListener("input", () => { state.periodIdx = Number(slider.value); paint(); });
+  playBtn.addEventListener("click", () => {
+    if (state.timer) { clearInterval(state.timer); state.timer = null; playBtn.textContent = "Play"; playBtn.setAttribute("aria-pressed", "false"); return; }
+    if (state.periodIdx >= lastIdx) state.periodIdx = 0;
+    playBtn.textContent = "Pause"; playBtn.setAttribute("aria-pressed", "true");
+    paint();
+    state.timer = setInterval(() => {
+      if (state.periodIdx >= lastIdx) { clearInterval(state.timer); state.timer = null; playBtn.textContent = "Play"; playBtn.setAttribute("aria-pressed", "false"); return; }
+      state.periodIdx += 1; paint();
+    }, 900);
+  });
+
+  clear(root);
+  root.append(
+    h("div", { class: "map-top" },
+      h("div", {}, h("h2", { text: g.learner.alias }),
+        h("div", { class: "small muted", text: "Home language: " + langName(g.learner.home_language) + ". Columns are grades; rows are strands; a line means “needs this first”." })),
+      legend),
+    h("div", { class: "replay card" },
+      h("label", { for: rangeId, text: "Term" }), slider, periodLabel, playBtn,
+      h("span", { class: "small muted", text: "Replay shows what the records had shown by each term." })),
+    h("div", { class: "map-cols" },
+      h("div", { class: "mapbox", tabindex: 0, role: "region", "aria-label": "Scrollable curriculum map" }, svg),
+      detail));
+  paint();
+  if (state.sel && g.byId[state.sel]) drawDetail(detail, g, state.sel, paint);
+  else clear(detail).append(h("h3", { text: "Select a concept" }), h("p", { class: "muted", text: "Click or press Enter on any box to see this learner's records for it and to trace where a difficulty may have started." }));
+}
+
+function legendSwatch(st) {
+  const svg = s("svg", { width: 30, height: 20, "aria-hidden": "true" });
+  const g = s("g", { class: "node s-" + st });
+  g.append(s("rect", { class: "body", x: 1, y: 1, width: 28, height: 18, rx: 5 }));
+  if (st === "strong") g.append(s("circle", { class: "m-strong", cx: 15, cy: 10, r: 4.5 }));
+  if (st === "shaky") g.append(s("path", { class: "m-shaky", d: "M15,5 a5,5 0 0 1 0,10 z" }));
+  if (st === "gap") g.append(s("path", { class: "m-gap", d: "M15,4.5 l5,10 h-10 z" }));
+  if (st === "unseen") g.append(s("circle", { class: "m-unseen", cx: 15, cy: 10, r: 4.5 }));
+  svg.append(g);
+  return svg;
+}
+
+async function drawDetail(panel, g, cid, repaint) {
+  const n = g.byId[cid];
+  const stNow = n.state;
+  clear(panel);
+  const needs = g.edges.filter((e) => e.type === "requires" && e.target === cid).map((e) => e.source);
+  const leads = g.edges.filter((e) => e.type === "requires" && e.source === cid).map((e) => e.target);
+  const linkList = (ids) => ids.length
+    ? h("ul", { style: "margin:4px 0 0;padding-left:18px" }, ids.map((id) => h("li", {}, h("button", { type: "button", class: "linkbtn", style: "border:none;background:none;padding:0;min-height:0;color:#1f5f99;text-decoration:underline", onclick: () => { state.trace = null; state.sel = id; repaint(); drawDetail(panel, g, id, repaint); document.querySelector('[data-id="' + id + '"]').scrollIntoView({ block: "nearest", inline: "nearest" }); } }, labelOf(id) + " (grade " + (g.byId[id] ? g.byId[id].grade : "?") + ")"))))
+    : h("p", { class: "muted small", text: "None in this curriculum." });
+  const traceBox = h("div", { class: "stack" });
+  const evBox = h("div", {}, h("p", { class: "muted", text: "Loading records..." }));
+  panel.append(
+    h("h3", { text: n.label }),
+    h("p", { class: "small muted", text: "Grade " + n.grade + ", " + labelOf(n.strand) }),
+    h("p", {}, h("strong", { text: STATE_WORDS[stNow] }),
+      n.n ? h("span", { class: "muted", text: ". Average score " + pct(n.mastery) + " over " + n.n + " scored item" + (n.n === 1 ? "" : "s") + "." })
+          : h("span", { class: "muted", text: ". No scored records for this learner. That means nothing has been recorded, not that the learner is struggling." })),
+    h("div", { class: "row" }, h("button", { type: "button", class: "primary", onclick: () => doTrace(traceBox, g, cid, repaint) }, "Trace back"),
+      state.trace ? h("button", { type: "button", onclick: () => { state.trace = null; clear(traceBox); repaint(); } }, "Clear trace") : null),
+    traceBox,
+    h("h3", { style: "margin-top:14px", text: "Needs this first" }), linkList(needs),
+    h("h3", { style: "margin-top:10px", text: "Leads to" }), linkList(leads),
+    h("h3", { style: "margin-top:14px", text: "Records for this concept" }), evBox);
+  if (state.trace && state.trace.target.concept_id === cid) renderTrace(traceBox, g, state.trace);
+  try {
+    const tl = await api("/api/learners/" + encodeURIComponent(state.learnerId) + "/timeline?concept_id=" + encodeURIComponent(cid));
+    const rows = tl.periods.flatMap((p) => p.items);
+    clear(evBox).append(rows.length ? evidenceTable(rows) : h("p", { class: "muted", text: "No records for this concept." }));
+  } catch (e) { clear(evBox).append(h("p", { class: "err", text: e.message })); }
+}
+
+async function doTrace(box, g, cid, repaint) {
+  clear(box).append(h("p", { class: "muted", text: "Tracing..." }));
+  try {
+    const t = await api("/api/learners/" + encodeURIComponent(state.learnerId) + "/trace/" + encodeURIComponent(cid));
+    state.trace = t;
+    repaint();
+    drawDetail(document.getElementById("detail"), g, cid, repaint);
+  } catch (e) { clear(box).append(h("p", { class: "err", role: "alert", text: e.message })); }
+}
+
+function renderTrace(box, g, t) {
+  clear(box);
+  const evBox = h("div");
+  const parts = [];
+  parts.push(h("h3", { text: "Where this may have started" }));
+  parts.push(h("p", { text: t.reason }));
+  parts.push(h("p", { class: "small", text: confWords(t.confidence) + (t.confidence !== undefined ? " (" + pct(t.confidence) + ")" : "") + ". This is a pattern to check against what you know, not a conclusion about the learner." }));
+  if (t.root) {
+    parts.push(h("dl", { class: "kv" },
+      h("dt", { text: "Possible start" }), h("dd", { text: t.root.label + " (grade " + t.root.grade + ")" }),
+      h("dt", { text: "First seen" }), h("dd", { text: t.root.period }),
+      h("dt", { text: "Average" }), h("dd", { text: pct(t.root.mean) + " over " + t.root.n + " items" })));
+  } else {
+    parts.push(h("p", { class: "muted", text: "No clear starting point was found in the records." }));
+  }
+  if (t.path && t.path.length > 1) {
+    parts.push(h("p", { class: "small" }, h("strong", { text: "Path: " }), t.path.map((id) => labelOf(id)).join("  → needs →  ")));
+  }
+  if (t.context && t.context.length) {
+    parts.push(h("div", {}, h("strong", { text: "Absences around that time" }),
+      h("ul", { style: "margin:4px 0;padding-left:18px" }, t.context.map((c) => h("li", { text: c.absent_days + " day(s) absent in " + c.period + " (record " + c.evidence_id + ")" })))));
+  }
+  if (t.unknowns && t.unknowns.length) {
+    parts.push(h("div", {}, h("strong", { text: "No records for these concepts (not guessed)" }),
+      h("ul", { style: "margin:4px 0;padding-left:18px" }, t.unknowns.map((id) => h("li", { text: labelOf(id) })))));
+  }
+  if (t.alternatives && t.alternatives.length) {
+    parts.push(h("p", { class: "small", text: "Other possible starting points: " + t.alternatives.map((a) => a.label).join(", ") + "." }));
+  }
+  parts.push(h("details", {}, h("summary", { text: "Show the " + (t.evidence_ids || []).length + " records behind this" }),
+    h("div", { "data-lazy": "1" }, "")));
+  box.append(h("div", { class: "card stack", style: "background:#fbf6f1" }, parts));
+  const det = box.querySelector("details");
+  det.addEventListener("toggle", async () => {
+    const holder = det.querySelector("[data-lazy]");
+    if (!det.open || holder.dataset.done) return;
+    holder.dataset.done = "1";
+    clear(holder).append(h("p", { class: "muted", text: "Loading..." }));
+    try {
+      const r = await api("/api/evidence?ids=" + (t.evidence_ids || []).join(","));
+      clear(holder).append(evidenceTable(r.evidence));
+    } catch (e) { clear(holder).append(h("p", { class: "err", text: e.message })); }
+  });
+}
+
+// ---------------------------------------------------------------- patterns
+async function viewPatterns(root) {
+  if (!state.learnerId) return;
+  const lid = encodeURIComponent(state.learnerId);
+  await getGraph(state.learnerId);
+  const [pat, ww] = await Promise.all([api("/api/learners/" + lid + "/patterns"), api("/api/learners/" + lid + "/what-worked")]);
+  clear(root);
+  root.append(h("h2", { text: "Patterns for " + aliasOf(state.learnerId) }),
+    h("p", { class: "muted", text: "These are patterns the records show over several terms. They are things to check, not labels. Nothing here is a decision until you approve it in the Review queue." }));
+  const list = h("div");
+  if (!pat.patterns.length) list.append(h("p", { class: "empty", text: "No pattern has held for long enough yet." }));
+  for (const p of pat.patterns) {
+    const card = h("div", { class: "card" },
+      h("div", { class: "row" }, h("span", { class: "pill", text: p.kind === "strength" ? "Strength pattern" : "Struggle pattern" }),
+        h("strong", { text: p.label }), h("span", { class: "muted small", text: "(" + p.scope + ")" })),
+      h("p", { text: (p.kind === "strength" ? "Scores stayed high" : "Scores stayed low") + " in " + p.periods.join(", ") + ": average " + pct(p.mean) + " over " + p.n_items + " items. " + confWords(p.confidence) + "." }));
+    const det = h("details", {}, h("summary", { text: "Show the " + p.evidence_ids.length + " records" }), h("div", {}));
+    let done = false;
+    det.addEventListener("toggle", async () => {
+      if (!det.open || done) return;
+      done = true;
+      try { const r = await api("/api/evidence?ids=" + p.evidence_ids.join(",")); det.lastChild.append(evidenceTable(r.evidence)); }
+      catch (e) { det.lastChild.append(h("p", { class: "err", text: e.message })); }
+    });
+    card.append(det);
+    list.append(card);
+  }
+  root.append(list);
+  if (pat.data_gaps && pat.data_gaps.length) {
+    root.append(h("div", { class: "card" }, h("h3", { text: "Gaps in the records" }),
+      h("ul", {}, pat.data_gaps.map((d) => h("li", { text: d.period + ": " + d.reason })))));
+  }
+  const wwBox = h("div", { class: "card" }, h("h3", { text: "What seems to have helped this learner" }), h("p", { class: "small muted", text: ww.note }));
+  if (!ww.approaches.length) wwBox.append(h("p", { class: "muted", text: "Not enough before-and-after records yet." }));
+  for (const a of ww.approaches) {
+    wwBox.append(h("div", { class: "stack", style: "margin-top:8px" },
+      h("strong", { text: a.label }),
+      h("div", { class: "small", text: "Scores rose after " + a.improved + " time(s) and did not rise after " + a.not_improved + ". Average change " + (a.mean_gain >= 0 ? "+" : "") + Math.round(a.mean_gain * 100) + " points." }),
+      h("ul", { class: "small", style: "margin:0;padding-left:18px" }, a.instances.map((i) => h("li", { text: labelOf(i.concept_id) + ", " + i.period + ": " + pct(i.before) + " before, " + pct(i.after) + " after" })))));
+  }
+  root.append(wwBox);
+}
+
+// ---------------------------------------------------------------- review queue
+async function viewReview(root) {
+  const p = await api("/api/review/pending");
+  state.pendingCount = p.findings.length + p.summaries.length;
+  drawTabs();
+  const lids = [...new Set([...p.findings.map((f) => f.learner_id), ...p.summaries.map((x) => x.learner_id)])];
+  await Promise.all(lids.map((id) => getGraph(id).catch(() => null)));
+  clear(root);
+  root.append(h("h2", { text: "Review queue" }),
+    h("p", { class: "muted", text: "Proposals wait here until a named teacher decides. Choose your name at the top first. Approving, editing or rejecting is recorded with your name." }));
+  if (!p.findings.length && !p.summaries.length) root.append(h("p", { class: "empty card", text: "Nothing is waiting for review." }));
+  if (p.findings.length) root.append(h("h3", { style: "margin:14px 0 8px", text: "Proposed findings (" + p.findings.length + ")" }));
+  for (const f of p.findings) root.append(findingCard(f));
+  if (p.summaries.length) root.append(h("h3", { style: "margin:18px 0 8px", text: "Drafted summaries (" + p.summaries.length + ")" }));
+  for (const sm of p.summaries) root.append(summaryCard(sm));
+}
+
+function decisionError(box, msg) { clear(box).append(h("span", { class: "err", role: "alert", text: msg })); }
+
+function findingCard(f) {
+  const msg = h("div", { "aria-live": "polite" });
+  const note = h("input", { type: "text", id: "note-" + f.id, placeholder: "Optional" });
+  const editor = h("textarea", { id: "edit-" + f.id }); editor.value = f.statement;
+  const editWrap = h("div", { hidden: true }, h("label", { for: "edit-" + f.id, text: "Edit the statement" }), editor,
+    h("button", { type: "button", class: "primary", onclick: () => send("edited") }, "Save edit and approve"));
+  const buttons = [];
+  async function send(decision) {
+    if (!teacherId()) return decisionError(msg, "Choose your name in “Signed in as” at the top first.");
+    buttons.forEach((b) => (b.disabled = true));
+    try {
+      const body = { decision, teacher_id: teacherId(), note: note.value || null };
+      if (decision === "edited") body.edited_statement = editor.value;
+      const r = await post("/api/findings/" + encodeURIComponent(f.id) + "/decision", body);
+      const who = state.teachers.find((t) => t.id === teacherId());
+      clear(msg).append(h("span", { class: "okmsg", text: { approved: "Approved", edited: "Edited and approved", rejected: "Rejected" }[decision] + " by " + (who ? who.name : "you") + "." + (r.resumed_runs && r.resumed_runs.length ? " The waiting agent run was resumed." : "") }));
+      card.querySelector(".controls").hidden = true;
+      refreshPending();
+    } catch (e) { decisionError(msg, e.message); buttons.forEach((b) => (b.disabled = false)); }
+  }
+  const approve = h("button", { type: "button", class: "primary", onclick: () => send("approved") }, "Approve");
+  const edit = h("button", { type: "button", onclick: () => { editWrap.hidden = !editWrap.hidden; if (!editWrap.hidden) editor.focus(); } }, "Edit");
+  const reject = h("button", { type: "button", class: "danger", onclick: () => send("rejected") }, "Reject");
+  buttons.push(approve, edit, reject);
+  const card = h("article", { class: "card finding", "aria-label": "Proposed finding for " + aliasOf(f.learner_id) },
+    h("div", { class: "row" }, h("span", { class: "pill", text: KIND[f.kind] || f.kind }), h("strong", { text: aliasOf(f.learner_id) }),
+      h("span", { class: "muted small", text: confWords(f.confidence) })),
+    h("p", { class: "statement", text: f.statement }),
+    f.path && f.path.length > 1 ? h("p", { class: "small muted", text: "Path checked: " + f.path.map(labelOf).join(" → ") }) : null,
+    h("details", { open: true }, h("summary", { text: "Evidence behind this (" + f.evidence.length + " records)" }), evidenceTable(f.evidence)),
+    h("p", { class: "small muted", text: "Proposed by " + f.proposed_by + "." }),
+    h("div", { class: "controls" },
+      h("div", {}, h("label", { for: "note-" + f.id, text: "Note (optional)" }), note),
+      h("div", { class: "row" }, approve, edit, reject), editWrap),
+    msg);
+  return card;
+}
+
+function summaryCard(sm) {
+  const msg = h("div", { "aria-live": "polite" });
+  const note = h("input", { type: "text", id: "snote-" + sm.id, placeholder: "Optional" });
+  const buttons = [];
+  async function send(decision) {
+    if (!teacherId()) return decisionError(msg, "Choose your name in “Signed in as” at the top first.");
+    buttons.forEach((b) => (b.disabled = true));
+    try {
+      const r = await post("/api/summaries/" + encodeURIComponent(sm.id) + "/decision", { decision, teacher_id: teacherId(), note: note.value || null });
+      const who = state.teachers.find((t) => t.id === teacherId());
+      clear(msg).append(h("span", { class: "okmsg", text: (decision === "approved" ? "Approved" : "Rejected") + " by " + (who ? who.name : "you") + "." + (r.resumed_runs && r.resumed_runs.length ? " The waiting agent run was resumed." : "") }));
+      card.querySelector(".controls").hidden = true;
+      refreshPending();
+    } catch (e) { decisionError(msg, e.message); buttons.forEach((b) => (b.disabled = false)); }
+  }
+  const approve = h("button", { type: "button", class: "primary", onclick: () => send("approved") }, "Approve this text");
+  const reject = h("button", { type: "button", class: "danger", onclick: () => send("rejected") }, "Reject");
+  buttons.push(approve, reject);
+  const rtl = RTL.has(sm.language);
+  const audience = sm.audience === "guardian" ? "For the learner's guardian" : "Handover for the next teacher";
+  const card = h("article", { class: "card", "aria-label": "Drafted summary for " + aliasOf(sm.learner_id) },
+    h("div", { class: "row" }, h("span", { class: "pill", text: audience }), h("span", { class: "pill", text: langName(sm.language) }), h("strong", { text: aliasOf(sm.learner_id) })),
+    sm.language !== "en"
+      ? h("div", { class: "small muted", text: "Machine draft in " + langName(sm.language) + ". Approve it only if you, or someone you trust, can read " + langName(sm.language) + ". The English note says the same thing." })
+      : null,
+    h("p", { class: "statement" + (rtl ? " rtl" : ""), lang: sm.language, dir: rtl ? "rtl" : "auto", style: "font-size:16px;margin:8px 0", text: sm.text }),
+    h("details", {}, h("summary", { text: "Approved findings this is built from (" + sm.findings.length + ")" }),
+      sm.findings.map((f) => h("div", { class: "stack", style: "margin-bottom:10px" }, h("div", { text: f.statement }), evidenceTable(f.evidence)))),
+    h("div", { class: "controls", style: "display:grid;gap:8px;margin-top:10px" },
+      h("div", {}, h("label", { for: "snote-" + sm.id, text: "Note (optional)" }), note),
+      h("div", { class: "row" }, approve, reject)),
+    msg);
+  return card;
+}
+
+// ---------------------------------------------------------------- agent
+async function viewAgent(root) {
+  clear(root);
+  root.append(h("h2", { text: "Agent" }),
+    h("p", { class: "muted", text: "The agent reads a document, checks the map and proposes findings. It cannot approve anything: it stops and waits for a teacher." }));
+  const out = h("div", { id: "agent-out" });
+  const runsBox = h("div", { id: "runs-list" });
+  let files = [];
+  try { files = (await api("/api/inbox")).files; } catch (e) { out.append(h("p", { class: "err", text: e.message })); }
+  const fileSel = h("select", { id: "inbox-file" }, h("option", { value: "", text: "No file: use the records already stored" }), files.map((f) => h("option", { value: f.name, text: f.name })));
+  const learnerSel = h("select", { id: "run-learner" }, state.learners.map((l) => h("option", { value: l.learner_id, text: l.alias })));
+  learnerSel.value = state.learnerId;
+  const msg = h("div", { "aria-live": "polite" });
+  const go = h("button", { type: "button", class: "primary" }, "Start a run");
+  go.addEventListener("click", async () => {
+    go.disabled = true; clear(msg);
+    try {
+      const r = await post("/api/runs", { learner_id: learnerSel.value, inbox_file: fileSel.value || null });
+      state.runId = r.run_id;
+      pollRun(out, runsBox);
+    } catch (e) { msg.append(h("span", { class: "err", role: "alert", text: e.message })); }
+    go.disabled = false;
+  });
+  root.append(h("div", { class: "card" }, h("div", { class: "row" },
+    h("div", {}, h("label", { for: "inbox-file", text: "Document from the inbox" }), h("br"), fileSel),
+    h("div", {}, h("label", { for: "run-learner", text: "Learner" }), h("br"), learnerSel),
+    h("div", {}, h("br"), go)), msg), out, h("h3", { style: "margin:16px 0 6px", text: "Earlier runs" }), runsBox);
+  await loadRuns(runsBox, out);
+  if (state.runId) pollRun(out, runsBox);
+}
+
+async function loadRuns(box, out) {
+  try {
+    const r = await api("/api/runs");
+    clear(box);
+    if (!r.runs.length) { box.append(h("p", { class: "muted", text: "No runs yet." })); return; }
+    box.append(h("div", { class: "tablewrap" }, h("table", {},
+      h("thead", {}, h("tr", {}, ["Started", "Learner", "Status", ""].map((t) => h("th", { scope: "col", text: t })))),
+      h("tbody", {}, r.runs.slice(0, 15).map((run) => h("tr", {},
+        h("td", { text: run.started_at ? new Date(run.started_at).toLocaleString() : "" }),
+        h("td", { text: aliasOf((run.task || {}).learner_id) }),
+        h("td", { class: "status-" + run.status, text: statusWords(run.status) }),
+        h("td", {}, h("button", { type: "button", onclick: () => { state.runId = run.run_id; pollRun(out, box); } }, "Open"))))))));
+  } catch (e) { clear(box).append(h("p", { class: e.status === 503 ? "muted" : "err", text: e.message })); }
+}
+const statusWords = (st) => ({ running: "Running", waiting_for_teacher: "Waiting for a teacher", done: "Done", failed: "Failed" }[st] || st);
+
+function pollRun(out, runsBox) {
+  if (state.runTimer) clearInterval(state.runTimer);
+  const tick = async () => {
+    if (!document.body.contains(out)) { clearInterval(state.runTimer); state.runTimer = null; return; }
+    try {
+      const r = await api("/api/runs/" + encodeURIComponent(state.runId));
+      renderRun(out, r);
+      if (r.status === "done" || r.status === "failed") { clearInterval(state.runTimer); state.runTimer = null; loadRuns(runsBox, out); refreshPending(); }
+    } catch (e) { clear(out).append(h("p", { class: "err", role: "alert", text: e.message })); clearInterval(state.runTimer); state.runTimer = null; }
+  };
+  tick();
+  state.runTimer = setInterval(tick, 2000);
+}
+
+function renderRun(out, r) {
+  clear(out);
+  const u = r.usage || {};
+  const usageText = Object.keys(u).length
+    ? [u.calls !== undefined ? u.calls + " model calls" : null, u.input_tokens !== undefined ? u.input_tokens + " tokens in" : null, u.output_tokens !== undefined ? u.output_tokens + " tokens out" : null, u.seconds !== undefined ? u.seconds + " s of model time" : null].filter(Boolean).join(", ")
+    : "not recorded yet";
+  const card = h("div", { class: "card stack", "aria-live": "polite" },
+    h("div", { class: "row" }, h("strong", { text: "Run " + r.run_id }), h("span", { class: "status-" + r.status, text: statusWords(r.status) }),
+      r.task ? h("span", { class: "muted", text: aliasOf(r.task.learner_id) + (r.task.inbox_file ? ", file " + String(r.task.inbox_file).split(/[\\/]/).pop() : "") }) : null),
+    h("dl", { class: "kv" }, h("dt", { text: "Model" }), h("dd", { text: r.model || "not recorded" }), h("dt", { text: "Usage" }), h("dd", { text: usageText })));
+  if (r.status === "waiting_for_teacher") {
+    card.append(h("p", {}, h("strong", { text: "Waiting for a teacher. " }), h("a", { href: "#review", onclick: (ev) => { ev.preventDefault(); show("review"); } }, "Open the review queue"),
+      " to approve, edit or reject what the agent proposed. The run continues once you decide."));
+  }
+  if (r.error) card.append(h("p", { class: "err", role: "alert", text: "The run stopped: " + r.error }));
+  card.append(h("h3", { text: "Steps" }));
+  card.append((r.steps || []).length
+    ? h("ol", { class: "steps" }, r.steps.map((st) => h("li", {}, h("strong", { text: st.node }), " ", h("span", { class: st.ok === false ? "err" : "muted", text: (st.ok === false ? "failed. " : "") + (st.note || "") }))))
+    : h("p", { class: "muted", text: "No steps yet." }));
+  const oq = r.open_questions || [];
+  if (oq.length) {
+    card.append(h("h3", { text: "Questions the agent left open instead of guessing" }),
+      h("ul", {}, oq.map((q) => h("li", { text: typeof q === "string" ? q : JSON.stringify(q) }))));
+  }
+  const ids = (r.finding_ids || []).length;
+  if (ids || (r.summary_ids || []).length) card.append(h("p", { class: "small muted", text: "Proposed " + ids + " finding(s) and " + (r.summary_ids || []).length + " summary draft(s)." }));
+  out.append(card);
+}
+
+// ---------------------------------------------------------------- audit
+async function viewAudit(root) {
+  clear(root);
+  root.append(h("h2", { text: "Audit log" }),
+    h("p", { class: "muted", text: "Every tool call anyone made, and every decision with the teacher's name." }));
+  const tool = h("input", { type: "text", id: "audit-tool", placeholder: "e.g. propose_finding" });
+  const limit = h("select", { id: "audit-limit" }, [50, 100, 300].map((n) => h("option", { value: n, text: "Latest " + n })));
+  const table = h("div"), appr = h("div");
+  async function load() {
+    const q = "?limit=" + limit.value + (tool.value.trim() ? "&tool=" + encodeURIComponent(tool.value.trim()) : "");
+    const r = await api("/api/audit" + q);
+    clear(table);
+    if (!r.entries.length) { table.append(h("p", { class: "empty", text: "No entries match." })); return; }
+    const tb = h("tbody");
+    for (const e of r.entries) {
+      const detail = h("tr", { hidden: true }, h("td", { colspan: 6 },
+        h("strong", { text: "Input" }), h("pre", { text: pretty(e.input) }), h("strong", { text: "Output" }), h("pre", { text: pretty(e.output) })));
+      const btn = h("button", { type: "button", "aria-expanded": "false", onclick: () => { detail.hidden = !detail.hidden; btn.setAttribute("aria-expanded", String(!detail.hidden)); btn.textContent = detail.hidden ? "Show" : "Hide"; } }, "Show");
+      tb.append(h("tr", {}, h("td", { text: new Date(e.ts).toLocaleString() }), h("td", { text: e.actor }), h("td", { text: e.tool }),
+        h("td", { class: e.ok ? "okmsg" : "err", text: e.ok ? "ok" : "failed" }), h("td", { text: e.duration_ms + " ms" }), h("td", {}, btn)), detail);
+    }
+    table.append(h("div", { class: "tablewrap" }, h("table", {},
+      h("thead", {}, h("tr", {}, ["Time", "Actor", "Tool", "Result", "Duration", "Details"].map((t) => h("th", { scope: "col", text: t })))), tb)));
+  }
+  const filter = h("div", { class: "row card" }, h("div", {}, h("label", { for: "audit-tool", text: "Tool name" }), h("br"), tool),
+    h("div", {}, h("label", { for: "audit-limit", text: "How many" }), h("br"), limit),
+    h("div", {}, h("br"), h("button", { type: "button", onclick: () => load().catch((e) => clear(table).append(h("p", { class: "err", text: e.message }))) }, "Apply")));
+  root.append(filter, table, h("h3", { style: "margin:18px 0 6px", text: "Decisions by teachers" }), appr);
+  const a = await api("/api/approvals");
+  if (!a.approvals.length) appr.append(h("p", { class: "muted", text: "No decisions yet." }));
+  else appr.append(h("div", { class: "tablewrap" }, h("table", {},
+    h("thead", {}, h("tr", {}, ["Time", "Teacher", "Decision", "On", "Note"].map((t) => h("th", { scope: "col", text: t })))),
+    h("tbody", {}, a.approvals.map((x) => h("tr", {}, h("td", { text: new Date(x.ts).toLocaleString() }), h("td", { text: x.teacher_name }),
+      h("td", { text: x.decision }), h("td", { text: x.target_type + " " + x.target_id }), h("td", { text: x.note || "" })))))));
+  await load();
+}
+function pretty(text) { try { return JSON.stringify(JSON.parse(text), null, 2); } catch (e) { return text; } }
+
+init();
+</script>
+</body>
+</html>
