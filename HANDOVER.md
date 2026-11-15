@@ -13,7 +13,9 @@ You are picking this up for a day. This page is everything you need to start.
    uv sync --extra dev
    ```
 
-3. Open the folder in Claude Code. It reads `CLAUDE.md` by itself. A good first message:
+3. Open the folder in Claude Code. It reads `CLAUDE.md` by itself. For a full guided walkthrough
+   (the idea, the features, the code, exercises), paste the prompt in `docs/ONBOARDING_PROMPT.md`
+   as your first message. For a quick start instead:
 
    > Read CLAUDE.md, HANDOVER.md, README.md, ARCHITECTURE.md and EVALS.md, then explain this
    > project to me and run the tests.
