@@ -1,5 +1,8 @@
 # Meska Brain
 
+[![CI](https://github.com/OmarAxis/meska-brain/actions/workflows/ci.yml/badge.svg)](https://github.com/OmarAxis/meska-brain/actions/workflows/ci.yml)
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+
 Meska Brain follows one learner across years and shows a teacher where that learner is strong, where they struggle, and where a struggle may have started. It lays three maps over each other: the curriculum map (concepts and "needs this first" links), the learner map (every quiz item, note and attendance record), and the teacher map (what was taught, when, and with which approach). A graph does the reasoning, a small open-weights model only reads documents and words text, and a named teacher approves everything before it can be shared.
 
 Entry for the African Agentic AI Design Challenge, Education track "The Long View", sub-theme "Longitudinal strength tracking". Status: a working prototype on synthetic data. It has not been tried with a real teacher. See [What is not finished](#what-is-not-finished).
@@ -54,6 +57,10 @@ The learner **Profile** also draws a knowledge graph of everything connected to 
 Under **My teaching**, a teacher describes how often they use each teaching approach. On a learner's profile, the card **You and this learner** then puts two facts side by side: what was followed by gains for this learner, and how often this teacher says they teach that way. It does not score or rank teachers, and the answers are the teacher's own. Each finding in the review queue also carries **a possible next step**, worded by fixed rules, for the teacher to take or ignore.
 
 **More than one subject.** There are four subject packs: `generic-maths`, `generic-science` (life science, materials, physics, earth and space), `generic-language` and `generic-technology`. `generic-school` includes all four and adds links between subjects, for example a physics topic that needs a maths topic first, so a difficulty can be traced across subjects. `uv run meska seed --pack generic-school` generates the cohort on all four; it adds one learner (R-08) whose difficulty with maths word problems traces back to reading. The default seed, and the evaluation, stay on mathematics only, so the results in `EVALS.md` are not affected. The science, language and technology packs were written for this project and have not been reviewed by subject teachers.
+
+**A whole school.** `uv run meska seed --school` builds a larger synthetic school: all four subjects, 36 learners followed over four years, and ten teachers who each teach one subject and have described how they teach. Every teaching unit belongs to a teacher of its subject. The learners and their records are the same as without `--school`; only the staffing is added. `uv run meska report --all` then writes a report for every learner.
+
+**Choosing a model.** The Agent page lists the models your local endpoint serves (LM Studio lists what you have downloaded) and uses the one you pick for that run. Only results from an open-weights model belong in `EVALS.md`.
 
 For a presentation, `uv run meska story` builds a ready state on a freshly seeded database: the engine's findings for three learners, some approved and some waiting. No model is used, the wording comes from fixed templates, and every step is logged with the actor `demo-setup` so it cannot be mistaken for the agent's work or a real teacher's decision. `uv run meska seed` wipes it.
 
@@ -152,6 +159,8 @@ Runs are guarded too. A learner can have only one open run. Resuming is claimed 
 
 ## Tests and evals
 
+Every push and pull request runs the linter and the tests on Linux and Windows, and starts the app from a fresh clone with one command (`.github/workflows/ci.yml`). No model and no secret is needed for that.
+
 ```
 uv run pytest          # unit and integration tests, no model needed
 uv run meska eval      # engine and server tasks (no model) plus agent tasks on the local model
@@ -213,7 +222,7 @@ data/              synthetic inbox files and ground truth (the database is gener
 tests/, evals/results/, docs/
 ```
 
-Other files: [ARCHITECTURE.md](ARCHITECTURE.md), [DESCRIPTION.md](DESCRIPTION.md), [EVALS.md](EVALS.md), [docs/CONTRACT.md](docs/CONTRACT.md) (the interfaces the parts were built against), [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md), [docs/CLOUD_TASKS.md](docs/CLOUD_TASKS.md).
+Other files: [SECURITY.md](SECURITY.md) (what the code enforces and what it does not yet), [ARCHITECTURE.md](ARCHITECTURE.md), [DESCRIPTION.md](DESCRIPTION.md), [EVALS.md](EVALS.md), [docs/CONTRACT.md](docs/CONTRACT.md) (the interfaces the parts were built against), [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md), [docs/CLOUD_TASKS.md](docs/CLOUD_TASKS.md).
 
 ## What is not finished
 

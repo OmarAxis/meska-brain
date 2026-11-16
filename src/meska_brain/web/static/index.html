@@ -1622,12 +1622,19 @@ async function viewAgent(root) {
   const fileSel = h("select", { id: "inbox-file" }, h("option", { value: "", text: "No file: use the records already stored" }), files.map((f) => h("option", { value: f.name, text: f.name })));
   const learnerSel = h("select", { id: "run-learner" }, state.learners.map((l) => h("option", { value: l.learner_id, text: l.alias })));
   learnerSel.value = state.learnerId;
+  let offered = { default: "", models: [], problem: null };
+  try { offered = await api("/api/models"); } catch (e) { /* the default model is used */ }
+  const names = [...new Set([offered.default, ...offered.models].filter(Boolean))];
+  const modelSel = h("select", { id: "run-model" }, names.map((m) => h("option", { value: m, text: m + (m === offered.default ? " (default)" : "") })));
+  const saved = store("meska.model");
+  if (saved && names.includes(saved)) modelSel.value = saved;
+  modelSel.addEventListener("change", () => store("meska.model", modelSel.value));
   const msg = h("div", { "aria-live": "polite" });
   const go = h("button", { type: "button", class: "primary" }, "Start a run");
   go.addEventListener("click", async () => {
     go.disabled = true; clear(msg);
     try {
-      const r = await post("/api/runs", { learner_id: learnerSel.value, inbox_file: fileSel.value || null });
+      const r = await post("/api/runs", { learner_id: learnerSel.value, inbox_file: fileSel.value || null, model: modelSel.value || null });
       state.runId = r.run_id;
       pollRun(out, runsBox);
     } catch (e) { msg.append(h("span", { class: "err", role: "alert", text: e.message })); }
@@ -1636,7 +1643,10 @@ async function viewAgent(root) {
   root.append(h("div", { class: "card" }, h("div", { class: "row" },
     h("div", {}, h("label", { for: "inbox-file", text: "Document from the inbox" }), h("br"), fileSel),
     h("div", {}, h("label", { for: "run-learner", text: "Learner" }), h("br"), learnerSel),
-    h("div", {}, h("br"), go)), msg), out, h("h3", { style: "margin:16px 0 6px", text: "Earlier runs" }), runsBox);
+    h("div", {}, h("label", { for: "run-model", text: "Model" }), h("br"), modelSel),
+    h("div", {}, h("br"), go)),
+    h("p", { class: "small muted", text: offered.problem ? offered.problem + " Start it, or the run will fail." : "Models come from " + (offered.endpoint || "the local endpoint") + ". Only results from an open-weights model belong in EVALS.md." }),
+    msg), out, h("h3", { style: "margin:16px 0 6px", text: "Earlier runs" }), runsBox);
   await loadRuns(runsBox, out);
   if (state.runId) pollRun(out, runsBox);
 }

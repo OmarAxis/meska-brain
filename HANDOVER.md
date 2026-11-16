@@ -78,7 +78,7 @@ In rough order of value:
 
 - Nobody who teaches has used it. Twenty points of the judging depend on fit to a real classroom.
 - No demo video yet (`docs/DEMO_SCRIPT.md` has the shot list; under 3 minutes, unedited).
-- The web app has no page that lists approved notes, and no sign-in.
+- The web app has no sign-in. `SECURITY.md` lists this and the other gaps to close before real use.
 - Only one model has been evaluated.
 - Full list: the last section of `EVALS.md` and `docs/CLOUD_TASKS.md`.
 

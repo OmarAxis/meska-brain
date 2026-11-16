@@ -42,11 +42,18 @@ def _resolve_learner(text: str) -> str:
 
 
 @app.command()
-def seed(seed: int = 7, learners: int = 12, years: int = 4,
-         pack: str = typer.Option(None, help="Curriculum pack id, e.g. generic-school for all subjects.")) -> None:
+def seed(seed: int = 7, learners: int | None = typer.Option(None, help="How many learners. Default 12, or 36 with --school."),
+         years: int = 4,
+         pack: str = typer.Option(None, help="Curriculum pack id, e.g. generic-school for all subjects."),
+         school: bool = typer.Option(False, "--school", help="A whole school: all four subjects, 36 learners, ten "
+                                                             "teachers who each teach a subject and describe how they teach.")) -> None:
     """Regenerate the synthetic cohort. Wipes existing data."""
     from . import synth
-    console.print_json(json.dumps(synth.generate(seed=seed, n_learners=learners, years=years, pack_id=pack), default=str))
+    if school:
+        pack = pack or "generic-school"
+    count = learners or (synth.SCHOOL_LEARNERS if school else 12)
+    console.print_json(json.dumps(synth.generate(seed=seed, n_learners=count, years=years, pack_id=pack, school=school),
+                                  default=str))
 
 
 @app.command()
@@ -147,15 +154,26 @@ def resume(run_id: str) -> None:
 
 
 @app.command()
-def report(learner: str, out: Path | None = typer.Option(None, help="Where to write the page. Default: reports/<alias>.html")) -> None:
-    """Write a printable report for one learner, from approved findings and notes only."""
+def report(learner: str = typer.Argument(None, help="Alias such as A-17, or a learner id. Leave out with --all."),
+           out: Path | None = typer.Option(None, help="File to write, or a folder with --all. Default: reports/"),
+           everyone: bool = typer.Option(False, "--all", help="Write one report for every learner.")) -> None:
+    """Write a printable report: the learner's records as a graph, then approved findings and notes only."""
     _ensure_seeded()
     from . import report as report_module
-    data = report_module.build(_resolve_learner(learner))
-    target = out or Path("reports") / f"{data['learner']['alias'].split()[-1]}.html"
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(report_module.render_html(data), encoding="utf-8")
-    console.print(f"Wrote {target} ({len(data['findings'])} approved findings, {len(data['notes'])} approved notes).", highlight=False)
+    if everyone:
+        with db.connect() as conn:
+            wanted = [r["id"] for r in db.rows(conn, "SELECT id FROM learners ORDER BY alias COLLATE NOCASE, id")]
+    elif learner:
+        wanted = [_resolve_learner(learner)]
+    else:
+        raise typer.BadParameter("Name a learner, or use --all.")
+    folder = out if (out and everyone) else Path("reports")
+    for learner_id in wanted:
+        data = report_module.build(learner_id)
+        target = out if (out and not everyone) else folder / f"{data['learner']['alias'].split()[-1]}.html"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(report_module.render_html(data), encoding="utf-8")
+        console.print(f"Wrote {target} ({len(data['findings'])} approved findings, {len(data['notes'])} approved notes).", highlight=False)
 
 
 @app.command("export-graph")
