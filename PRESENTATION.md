@@ -105,7 +105,7 @@ teachers who will tell us where it is wrong."
 - One borrowed server, Microsoft's `markitdown-mcp`, for reading documents, so we did not write our own
   converter.
 - LangGraph for the agent, with two points where it stops and waits for a named teacher.
-- 185 tests that need no model. An evaluation of 28 tasks on an open model, plus 14 scenarios run by hand.
+- 193 tests that need no model. An evaluation of 28 tasks on an open model, plus 14 scenarios run by hand.
 - Show a failure on purpose. The guard catches only 2 of 6 labelling phrasings it was not written for. One
   drafted note added advice that was not in the approved findings. Both are written down in `EVALS.md`.
 
