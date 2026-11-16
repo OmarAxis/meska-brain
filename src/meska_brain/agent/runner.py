@@ -20,7 +20,7 @@ from langgraph.types import Command
 
 from .. import db
 from ..config import get_settings
-from .llm import Usage, chat_model
+from .llm import PROVIDERS, Usage, chat_model, scrub
 from .mcp_io import McpHub
 from .workflow import RESOURCES, build_graph
 
@@ -87,8 +87,8 @@ async def _drive(run_id: str, graph_input) -> dict:
                 record["pending"] = None
     except Exception as exc:  # noqa: BLE001 - record the failure honestly for the UI and evals
         record["status"] = "failed"
-        record["error"] = f"{type(exc).__name__}: {exc}"
-        record["trace"] = traceback.format_exc()[-1500:]
+        record["error"] = scrub(f"{type(exc).__name__}: {exc}")      # a provider error must never carry a key
+        record["trace"] = scrub(traceback.format_exc()[-1500:])
     finally:
         RESOURCES.pop(run_id, None)
     totals = record.setdefault("usage", {"calls": 0, "input_tokens": 0, "output_tokens": 0, "seconds": 0.0})
@@ -160,6 +160,10 @@ def _new_record(task: dict) -> dict:
                          "Decide what is waiting, or wait for it to finish, before starting another.")
     settings = get_settings()
     which = task.get("which_model", "local")
+    if which != "frontier" and which not in PROVIDERS:
+        raise ValueError(f"Unknown model provider '{which}'.")
+    if which in PROVIDERS and PROVIDERS[which].cloud and not task.get("model"):
+        raise ValueError(f"Choose a model for {PROVIDERS[which].label}.")
     return _save({
         "run_id": db.new_id("run"), "task": task, "status": "running", "steps": [], "pending": None,
         "which_model": which,

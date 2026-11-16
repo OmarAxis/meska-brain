@@ -66,6 +66,33 @@ WANTS_HELP = [
     "Writing to families in their own language.",
 ]
 
+# Invented names, so a teacher's screen reads like a class and not like a list of codes. They are not
+# real children. Only a first name and an initial are made up, and only the teacher app shows them.
+FIRST_NAMES = [
+    "Amani", "Kofi", "Zainab", "Tendai", "Fatima", "Chidi", "Leila", "Sipho", "Aisha", "Kwabena", "Nomsa", "Youssef",
+    "Wanjiku", "Emeka", "Mariam", "Thabo", "Halima", "Kagiso", "Salma", "Obinna", "Nia", "Tariq", "Adaeze", "Juma",
+    "Hana", "Bongani", "Imani", "Karim", "Folake", "Mwangi", "Rania", "Sekou", "Zola", "Hassan", "Ama", "Idris",
+    "Lindiwe", "Baraka", "Chiamaka", "Nour", "Kelechi", "Ayana", "Malik", "Thandeka", "Yaw", "Samira", "Dumisani",
+    "Efua", "Khalid", "Neema", "Tunde", "Layla", "Sizwe", "Abena", "Rashid", "Makena", "Jabari", "Dalia", "Olu", "Zuri",
+]
+FAMILY_INITIALS = "KMOANDBSTWHJ"
+
+
+def invented_name(index: int) -> str:
+    """The name of the learner at this position: a first name and an initial, the same every time."""
+    first = FIRST_NAMES[index % len(FIRST_NAMES)]
+    return f"{first} {FAMILY_INITIALS[(index * 5 + index // len(FIRST_NAMES)) % len(FAMILY_INITIALS)]}."
+
+
+def assign_names(db_path: Path | str | None = None) -> int:
+    """Give every learner an invented display name, in the order they were created."""
+    with db.connect(db_path) as conn:
+        learners = db.rows(conn, "SELECT id FROM learners ORDER BY rowid")
+        conn.executemany("UPDATE learners SET display_name = ? WHERE id = ?",
+                         [(invented_name(i), row["id"]) for i, row in enumerate(learners)])
+    return len(learners)
+
+
 MILD_LANGS = ["ar", "sw", "fr", "am", "ha", "en"]
 MILD_START_GRADES = [3, 4, 5, 4, 3, 5]
 
@@ -739,6 +766,7 @@ def generate(
         "- `register_*.csv`: attendance for three learners, with a blank value on purpose\n",
         encoding="utf-8")
 
+    assign_names(db_path)
     staffed = _staff_school(db_path, seed, pack_id) if school else None
     if staffed:
         counts["teachers"] = staffed["teachers"]

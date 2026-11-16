@@ -83,7 +83,8 @@ def learner_mind(learner_id: str, db_path=None) -> dict[str, Any]:
     worked = graph.what_worked(learner_id, db_path=db_path)
     approaches = [{"id": a["approach_id"], "label": a["label"], "improved": a["improved"],
                    "not_improved": a["not_improved"]} for a in worked.get("approaches", [])]
-    return {"learner": {"learner_id": learner_id, "alias": learner["alias"]}, "subjects": subjects,
+    return {"learner": {"learner_id": learner_id, "alias": learner["alias"],
+                        "name": learner.get("display_name") or learner["alias"]}, "subjects": subjects,
             "strands": strands, "skills": skills,
             "teachers": sorted(teachers.values(), key=lambda t: t["name"]), "approaches": approaches,
             "thresholds": {"strong_above": graph.STRENGTH_ABOVE, "gap_below": graph.STRUGGLE_BELOW}}

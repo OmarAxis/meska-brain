@@ -160,6 +160,15 @@ svg text { font-family: inherit; }
 .node .tag { display: none; font-size: 10px; font-weight: 700; }
 .node.is-root .tag.root, .node.is-unknown .tag.unk { display: block; fill: #0A0A0A; }
 .node .tag.starts { display: block; fill: #A63F00; }
+.chain { display: flex; flex-wrap: wrap; align-items: stretch; gap: 6px; margin: 10px 0; }
+.chain-chip { display: flex; flex-direction: column; border: 1px solid #C5D9FC; border-radius: 12px; padding: 6px 10px; background: #fff; font-size: 13px; }
+.chain-chip.start { border: 2px solid #A63F00; }
+.chain-tag { font-size: 10px; letter-spacing: .05em; text-transform: uppercase; font-weight: 700; color: var(--muted); }
+.chain-chip.start .chain-tag { color: #A63F00; }
+.chain-arrow { align-self: center; font-size: 12px; color: var(--muted); }
+.why { display: flex; flex-wrap: wrap; gap: 8px 28px; align-items: flex-start; margin: 6px 0 10px; }
+.why ul { margin: 4px 0; padding-left: 18px; font-size: 14px; max-width: 470px; }
+svg.terms { display: block; max-width: 100%; height: auto; }
 .btnlink { display: inline-flex; align-items: center; min-height: 40px; padding: 8px 16px; border: 1px solid var(--line); border-radius: 12px; background: #fff; color: var(--ink); font-weight: 600; text-decoration: none; }
 .btnlink:hover { border-color: var(--blue); }
 #detail h4 { margin: 14px 0 2px; font-size: 13px; }
@@ -382,7 +391,7 @@ button.linkish:hover { text-decoration: underline; background: transparent; }
     <div class="learnerbar" id="tabs" hidden></div>
     <div id="view"></div>
     <p class="small muted foot">
-      Learners appear by alias only. Nothing on this page ranks or compares learners. Every finding shows the records it rests on.
+      The learners' names are invented. Documents, the agent and the model only ever see a record code such as A-17. Nothing on this page ranks or compares learners. Every finding shows the records it rests on.
     </p>
   </main>
 </div>
@@ -468,7 +477,10 @@ const state = {
   graphs: {}, labels: {}, pendingCount: 0,
   sel: null, trace: null, periodIdx: 0, timer: null, runTimer: null, runId: null,
 };
-const aliasOf = (id) => (state.learners.find((l) => l.learner_id === id) || {}).alias || id;
+// A learner is shown by name. The record code (A-17) is what documents and the agent use.
+const learnerOf = (id) => state.learners.find((l) => l.learner_id === id) || {};
+const aliasOf = (id) => learnerOf(id).name || learnerOf(id).alias || id;
+const codeOf = (id) => String(learnerOf(id).alias || "").replace("Learner ", "");
 const labelOf = (id) => state.labels[id] || (id || "").replace(/-/g, " ");
 
 async function getGraph(lid) {
@@ -565,7 +577,7 @@ function drawTabs() {
   bar.hidden = state.view !== "learner";
   if (bar.hidden) return;
   const pick = h("select", { id: "learner-pick", "aria-label": "Learner" },
-    state.learners.map((l) => h("option", { value: l.learner_id, selected: l.learner_id === state.learnerId, text: l.alias + "  ·  Grade " + l.grade_now })));
+    state.learners.map((l) => h("option", { value: l.learner_id, selected: l.learner_id === state.learnerId, text: l.name + "  ·  " + codeOf(l.learner_id) + "  ·  Grade " + l.grade_now })));
   pick.addEventListener("change", () => pickLearner(pick.value));
   const tabs = h("nav", { class: "tabs", "aria-label": "Learner sections" },
     SUB.map(([id, name]) => h("button", { type: "button", "aria-current": id === state.sub ? "page" : "false", onclick: () => show("learner/" + id) }, name)));
@@ -713,7 +725,7 @@ async function viewOverview(root) {
   // waiting for a decision
   const waitCard = h("section", { class: "card" }, h("div", { class: "card-head" }, h("h3", { text: "Waiting for your decision" }),
     h("button", { type: "button", onclick: () => show("review") }, "Open review queue")));
-  for (const q of (p.requests || []).slice(0, 2)) waitCard.append(h("p", { class: "small" }, h("span", { class: "pill", text: "Missing record" }), " ", h("strong", { text: q.learner_alias }), " ", q.question));
+  for (const q of (p.requests || []).slice(0, 2)) waitCard.append(h("p", { class: "small" }, h("span", { class: "pill", text: "Missing record" }), " ", h("strong", { text: q.learner_name || q.learner_alias }), " ", q.question));
   if (!p.findings.length && !p.summaries.length && !(p.requests || []).length) waitCard.append(h("p", { class: "empty", text: "Nothing is waiting. When the agent proposes a finding, it stops here until a named teacher decides." }));
   const list = h("ul", { class: "waitlist" });
   for (const f of p.findings.slice(0, 5)) list.append(h("li", {},
@@ -744,7 +756,7 @@ async function viewOverview(root) {
 
   // roster + activity
   const rows = o.roster.map((r) => h("tr", {},
-    h("td", {}, h("button", { type: "button", class: "linkish", onclick: () => pickLearner(r.learner_id, "profile") }, r.alias)),
+    h("td", {}, h("button", { type: "button", class: "linkish", onclick: () => pickLearner(r.learner_id, "profile") }, r.name || r.alias), " ", h("span", { class: "small muted", text: codeOf(r.learner_id) })),
     h("td", { text: langName(r.home_language) }), h("td", { class: "numcol", text: num(r.records) }), h("td", { class: "numcol", text: r.terms }),
     h("td", { text: r.last_period || "none" }),
     h("td", {}, r.waiting ? h("span", { class: "pill", text: r.waiting + " waiting" }) : h("span", { class: "muted", text: "none" })),
@@ -775,7 +787,7 @@ async function viewProfile(root) {
   const t = d.totals;
   clear(root);
   root.append(h("div", { class: "pagehead" },
-    h("div", {}, h("h2", { text: d.learner.alias }),
+    h("div", {}, h("h2", { text: d.learner.name || d.learner.alias }),
       h("p", { class: "muted", text: "Grade " + d.learner.grade_now + ". Home language: " + langName(d.learner.home_language) + ". Followed from " + (t.first_period || "?") + " to " + (t.last_period || "?") + "." })),
     h("div", { class: "row" }, reportLink(state.learnerId),
       h("button", { type: "button", class: "primary", onclick: () => show("learner/map") }, "Open the learning map"))));
@@ -856,7 +868,7 @@ function knowledgeGraph(m) {
     ...m.approaches.map((x) => ({ type: "approach", label: x.label, sub: x.improved + " of " + (x.improved + x.not_improved), weight: (x.improved + x.not_improved) * 6, tip: x.label + ": scores rose afterwards " + x.improved + " of " + (x.improved + x.not_improved) + " times" })),
     ...m.teachers.map((x) => ({ type: "teacher", label: x.name, sub: x.units + " units", weight: x.units * 6, tip: x.name + " taught this learner " + x.units + " units" })),
   ];
-  const svg = s("svg", { viewBox: "0 0 " + W + " " + H, class: "chart kg", role: "img", "aria-label": "Knowledge graph for " + m.learner.alias });
+  const svg = s("svg", { viewBox: "0 0 " + W + " " + H, class: "chart kg", role: "img", "aria-label": "Knowledge graph for " + (m.learner.name || m.learner.alias) });
   const edges = s("g", {}), dots = s("g", {});
   const maxW = Math.max(1, ...nodes.map((n) => n.weight));
   nodes.forEach((n, i) => {
@@ -877,7 +889,7 @@ function knowledgeGraph(m) {
   });
   svg.append(edges, dots,
     s("circle", { cx, cy, r: 46, class: "kg-centre" }),
-    s("text", { class: "kg-centre-text", x: cx, y: cy + 7, "text-anchor": "middle", text: m.learner.alias.replace("Learner ", "") }));
+    s("text", { class: "kg-centre-text", x: cx, y: cy + 7, "text-anchor": "middle", text: (m.learner.name || m.learner.alias.replace("Learner ", "")).split(" ")[0] }));
   const present = [...new Set(nodes.map((n) => n.type))];
   const legend = h("ul", { class: "legend kg-legend", "aria-label": "Legend" }, present.map((t) => h("li", {}, h("span", { class: "kg-key", style: "background:" + NODE_COLOUR[t] }), h("span", { text: NODE_WORD[t] }))));
   return h("div", {}, legend, svg);
@@ -1102,7 +1114,7 @@ async function viewMap(root) {
     legendItem("gap", "Low scores so far"),
     legendItem("unseen", "No records yet (not the same as struggling)"));
 
-  const { svg, nodeEls, edgeEls } = mapSvg(g, L, "Curriculum map for " + g.learner.alias + ". Columns are grades, rows are strands.", (cid) => selectNode(cid));
+  const { svg, nodeEls, edgeEls } = mapSvg(g, L, "Curriculum map for " + (g.learner.display_name || g.learner.alias) + ". Columns are grades, rows are strands.", (cid) => selectNode(cid));
 
   const detail = h("aside", { id: "detail", class: "card", "aria-live": "polite", "aria-label": "Concept details" });
   const rangeId = "term-range";
@@ -1159,7 +1171,7 @@ async function viewMap(root) {
   clear(root);
   root.append(
     h("div", { class: "map-top" },
-      h("div", {}, h("h2", { text: g.learner.alias }),
+      h("div", {}, h("h2", { text: g.learner.display_name || g.learner.alias }),
         subjects.length > 1 ? h("div", { class: "row", style: "margin:8px 0" }, h("label", { for: "subject-pick", text: "Subject" }),
           (() => { const pick = h("select", { id: "subject-pick" }, [{ id: "all", label: "All subjects" }, ...subjects].map((x) => h("option", { value: x.id, selected: x.id === state.subject, text: x.label })));
             pick.addEventListener("change", () => { state.subject = pick.value; state.sel = null; state.trace = null; show("learner/map"); }); return pick; })()) : null,
@@ -1377,7 +1389,7 @@ async function viewSchool(root) {
       c.taught.length ? h("ul", { style: "margin:4px 0;padding-left:18px" }, c.taught.map((t) => h("li", { text: t.teacher + ", " + t.approach }))) : h("p", { class: "small muted", text: "No teaching unit is recorded for this topic." }),
       h("h4", { text: "Approved findings about this topic" }),
       c.approved_for.length
-        ? h("ul", { style: "margin:4px 0;padding-left:18px" }, c.approved_for.map((a) => h("li", {}, h("button", { type: "button", class: "linkbtn", style: "border:none;background:none;padding:0;min-height:0;color:#1f5f99;text-decoration:underline", onclick: () => { state.sel = cid; state.trace = null; pickLearner(a.learner_id, "map"); } }, a.alias), ": " + (KIND[a.kind] || a.kind))))
+        ? h("ul", { style: "margin:4px 0;padding-left:18px" }, c.approved_for.map((a) => h("li", {}, h("button", { type: "button", class: "linkbtn", style: "border:none;background:none;padding:0;min-height:0;color:#1f5f99;text-decoration:underline", onclick: () => { state.sel = cid; state.trace = null; pickLearner(a.learner_id, "map"); } }, a.name || a.alias), ": " + (KIND[a.kind] || a.kind))))
         : h("p", { class: "small muted", text: "None yet. A learner is named here only after a teacher approves a finding." }),
       needs.length ? h("div", {}, h("h4", { text: "Needs first" }), h("ul", { style: "margin:4px 0;padding-left:18px" }, needs.map(jump))) : null,
       leads.length ? h("div", {}, h("h4", { text: "Is needed for" }), h("ul", { style: "margin:4px 0;padding-left:18px" }, leads.map(jump))) : null);
@@ -1448,6 +1460,49 @@ async function viewReview(root) {
   for (const sm of p.summaries) root.append(summaryCard(sm));
 }
 
+// Why a finding says what it says: the chain of topics, the plain facts and the results term by term.
+// All three come from the server, computed from the records the finding cites. No model wrote them.
+function termChart(series) {
+  if (!series || !series.length) return null;
+  const step = 54, base = 96, top = 16, width = 34 + step * series.length;
+  const svg = s("svg", { class: "chart terms", viewBox: "0 0 " + width + " 116", width, height: 116, role: "img",
+    "aria-label": "Results term by term: " + series.map((p) => p.period + " " + Math.round(p.mean * 100) + "%").join(", ") });
+  svg.append(s("line", { x1: 20, y1: base, x2: width - 6, y2: base, stroke: "#9AA4B8", "stroke-width": 1 }));
+  series.forEach((p, i) => {
+    const x = 30 + i * step, height = Math.max(2, (base - top) * p.mean);
+    const bar = s("rect", { x, y: base - height, width: 32, height, rx: 4, fill: heatColour(p.mean).bg, stroke: "#5C93F6", "stroke-width": 1 });
+    bar.append(s("title", { text: p.period + ": " + Math.round(p.mean * 100) + "% over " + p.records + " records" }));
+    svg.append(bar,
+      s("text", { x: x + 16, y: base - height - 4, "text-anchor": "middle", "font-size": 11, "font-weight": 700, fill: "#0A0A0A", text: Math.round(p.mean * 100) + "%" }),
+      s("text", { x: x + 16, y: base + 14, "text-anchor": "middle", "font-size": 10, fill: "#5B6478", text: p.period.slice(2) }));
+  });
+  return svg;
+}
+
+function chainStrip(chain) {
+  if (!chain || !chain.length) return null;
+  const strip = h("div", { class: "chain", role: "img", "aria-label": chain.map((t) => t.label).join(" then ") });
+  chain.forEach((t, i) => {
+    if (i) strip.append(h("span", { class: "chain-arrow", "aria-hidden": "true", text: "is needed for →" }));
+    strip.append(h("div", { class: "chain-chip" + (i === 0 ? " start" : "") },
+      h("span", { class: "chain-tag", text: i === 0 ? "Began here" : i === chain.length - 1 ? "Shows up here now" : "On the way" }),
+      h("strong", { text: t.label }),
+      h("span", { class: "small muted", text: "Grade " + t.grade + ", " + (t.mean === null ? "no records cited" : Math.round(t.mean * 100) + "% on record") })));
+  });
+  return strip;
+}
+
+function whyBlock(f) {
+  const e = f.explain;
+  if (!e) return null;
+  const chart = termChart(e.series);
+  return h("div", { class: "whybox" },
+    chainStrip(e.chain),
+    h("div", { class: "why" },
+      h("div", {}, h("div", { class: "small" }, h("strong", { text: "Why this is suggested" })), h("ul", {}, e.facts.map((fact) => h("li", { text: fact })))),
+      chart ? h("div", {}, h("div", { class: "small muted", text: "Results on the cited records, term by term" }), chart) : null));
+}
+
 function decisionError(box, msg) { clear(box).append(h("span", { class: "err", role: "alert", text: msg })); }
 
 function requestCard(q, files) {
@@ -1473,8 +1528,8 @@ function requestCard(q, files) {
   const give = h("button", { type: "button", class: "primary", onclick: () => send("provided") }, "Add this record");
   const none = h("button", { type: "button", onclick: () => send("no_record") }, "No record exists");
   buttons.push(give, none);
-  const card = h("article", { class: "card", "aria-label": "Record request for " + q.learner_alias },
-    h("div", { class: "row" }, h("span", { class: "pill", text: "Missing record" }), h("strong", { text: q.learner_alias }),
+  const card = h("article", { class: "card", "aria-label": "Record request for " + (q.learner_name || q.learner_alias) },
+    h("div", { class: "row" }, h("span", { class: "pill", text: "Missing record" }), h("strong", { text: q.learner_name || q.learner_alias }),
       h("span", { class: "small muted", text: (q.concept_label || q.concept_id) + (q.grade ? ", grade " + q.grade : "") })),
     h("p", { class: "statement", style: "font-size:16px;margin:8px 0", text: q.question }),
     h("p", { class: "small muted", text: "The agent stopped instead of guessing. If you add a record, it reads it, files it as your answer, and looks again before it proposes anything. If you say none exists, it will not ask again." }),
@@ -1517,7 +1572,7 @@ function findingCard(f) {
     h("div", { class: "row" }, h("span", { class: "pill", text: KIND[f.kind] || f.kind }), h("strong", { text: aliasOf(f.learner_id) }),
       h("span", { class: "muted small", text: confWords(f.confidence) })),
     h("p", { class: "statement", text: f.statement }),
-    f.path && f.path.length > 1 ? h("p", { class: "small muted", text: "Path checked: " + f.path.map(labelOf).join(" → ") }) : null,
+    whyBlock(f),
     f.next_step ? h("div", { class: "nextstep" }, h("strong", { text: "A possible next step, for you to decide" }), h("div", { text: f.next_step })) : null,
     h("details", { open: true }, h("summary", { text: "Evidence behind this (" + f.evidence.length + " records)" }), evidenceTable(f.evidence)),
     h("p", { class: "small muted", text: "Proposed by " + f.proposed_by + "." }),
@@ -1605,6 +1660,7 @@ async function viewApproved(root) {
         h("span", { class: "pill", text: KIND[f.kind] || f.kind }),
         h("span", { class: "pill ok", text: (f.status === "edited" ? "Edited and approved by " : "Approved by ") + teacherName(f.decided_by) + (f.decided_at ? " on " + when(f.decided_at) : "") })),
       h("p", { class: "statement", text: f.statement }),
+      whyBlock(f),
       f.next_step ? h("div", { class: "nextstep" }, h("strong", { text: "A possible next step" }), h("div", { text: f.next_step })) : null,
       h("details", {}, h("summary", { text: "Evidence behind this (" + f.evidence.length + " records)" }), evidenceTable(f.evidence))));
   }
@@ -1620,21 +1676,50 @@ async function viewAgent(root) {
   let files = [];
   try { files = (await api("/api/inbox")).files; } catch (e) { out.append(h("p", { class: "err", text: e.message })); }
   const fileSel = h("select", { id: "inbox-file" }, h("option", { value: "", text: "No file: use the records already stored" }), files.map((f) => h("option", { value: f.name, text: f.name })));
-  const learnerSel = h("select", { id: "run-learner" }, state.learners.map((l) => h("option", { value: l.learner_id, text: l.alias })));
+  const learnerSel = h("select", { id: "run-learner" }, state.learners.map((l) => h("option", { value: l.learner_id, text: l.name + "  ·  " + codeOf(l.learner_id) })));
   learnerSel.value = state.learnerId;
-  let offered = { default: "", models: [], problem: null };
+  let offered = { default: "", models: [], problem: null, providers: [] };
   try { offered = await api("/api/models"); } catch (e) { /* the default model is used */ }
-  const names = [...new Set([offered.default, ...offered.models].filter(Boolean))];
-  const modelSel = h("select", { id: "run-model" }, names.map((m) => h("option", { value: m, text: m + (m === offered.default ? " (default)" : "") })));
+  const providers = offered.providers || [];
+  // One list, grouped by where the model runs. The value carries the provider and the model.
+  const pickValue = (pid, m) => pid + "::" + m;
+  const modelSel = h("select", { id: "run-model" }, providers.filter((p) => p.models.length).map((p) =>
+    h("optgroup", { label: p.label }, p.models.map((m) => h("option", { value: pickValue(p.id, m), text: m + (p.id === "local" && m === offered.default ? " (default)" : "") })))));
   const saved = store("meska.model");
-  if (saved && names.includes(saved)) modelSel.value = saved;
-  modelSel.addEventListener("change", () => store("meska.model", modelSel.value));
+  if (saved && [...modelSel.options].some((o) => o.value === saved)) modelSel.value = saved;
+  const cloudNote = h("p", { class: "small", role: "status" });
+  const chosen = () => { const [pid, ...rest] = String(modelSel.value || "local::").split("::"); return { provider: pid, model: rest.join("::") }; };
+  const showCloudNote = () => {
+    const p = providers.find((x) => x.id === chosen().provider);
+    clear(cloudNote);
+    if (p && p.cloud) cloudNote.append(h("strong", { text: "This run uses " + p.label + ". " }), "The document and the records the agent reads are sent to that company. Use it with made-up data only. Results from it cannot go in EVALS.md.");
+  };
+  modelSel.addEventListener("change", () => { store("meska.model", modelSel.value); showCloudNote(); });
+  showCloudNote();
+  // Cloud keys: typed here, kept in the app's memory until it stops, never saved and never shown again.
+  const cloudBox = h("details", { class: "card", style: "margin-top:12px" }, h("summary", { text: "Cloud models (optional): OpenAI and Claude" }),
+    h("p", { class: "small muted", text: "The default is a model on this computer, so nothing leaves it. To compare with a cloud model, paste your own key below. It stays in memory until the app stops. It is not saved to a file or the database, and the app never shows it back." }),
+    providers.filter((p) => p.cloud).map((p) => {
+      const input = h("input", { type: "password", id: "key-" + p.id, autocomplete: "off", spellcheck: "false", placeholder: p.ready ? "A key is in use. Paste another to replace it." : "Paste your " + p.label.replace(" (cloud)", "") + " key", style: "min-width:280px" });
+      const status = h("span", { class: "small " + (p.ready ? "okmsg" : "muted"), text: p.ready ? "Ready. Key from " + p.key_source + ". " + p.models.length + " models." : "No key yet. You can also set " + p.key_env + " before starting the app." });
+      const say = (text, bad) => { status.className = "small " + (bad ? "err" : "okmsg"); status.textContent = text; };
+      const save = h("button", { type: "button", onclick: async () => {
+        if (!input.value.trim()) return say("Paste a key first.", true);
+        try { await post("/api/providers/" + p.id + "/key", { key: input.value.trim() }); input.value = ""; show("agent"); }
+        catch (e) { say(e.message, true); }
+      } }, "Use this key");
+      const forget = h("button", { type: "button", onclick: async () => {
+        try { await api("/api/providers/" + p.id + "/key", { method: "DELETE" }); show("agent"); } catch (e) { say(e.message, true); }
+      } }, "Forget key");
+      return h("div", { class: "row", style: "margin:8px 0" }, h("label", { for: "key-" + p.id, text: p.label, style: "min-width:120px" }), input, save, p.ready ? forget : null, status,
+        p.problem ? h("span", { class: "small err", text: p.problem }) : null);
+    }));
   const msg = h("div", { "aria-live": "polite" });
   const go = h("button", { type: "button", class: "primary" }, "Start a run");
   go.addEventListener("click", async () => {
     go.disabled = true; clear(msg);
     try {
-      const r = await post("/api/runs", { learner_id: learnerSel.value, inbox_file: fileSel.value || null, model: modelSel.value || null });
+      const r = await post("/api/runs", { learner_id: learnerSel.value, inbox_file: fileSel.value || null, model: chosen().model || null, provider: chosen().provider || "local" });
       state.runId = r.run_id;
       pollRun(out, runsBox);
     } catch (e) { msg.append(h("span", { class: "err", role: "alert", text: e.message })); }
@@ -1646,7 +1731,7 @@ async function viewAgent(root) {
     h("div", {}, h("label", { for: "run-model", text: "Model" }), h("br"), modelSel),
     h("div", {}, h("br"), go)),
     h("p", { class: "small muted", text: offered.problem ? offered.problem + " Start it, or the run will fail." : "Models come from " + (offered.endpoint || "the local endpoint") + ". Only results from an open-weights model belong in EVALS.md." }),
-    msg), out, h("h3", { style: "margin:16px 0 6px", text: "Earlier runs" }), runsBox);
+    cloudNote, msg), cloudBox, out, h("h3", { style: "margin:16px 0 6px", text: "Earlier runs" }), runsBox);
   await loadRuns(runsBox, out);
   if (state.runId) pollRun(out, runsBox);
 }

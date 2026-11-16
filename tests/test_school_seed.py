@@ -144,3 +144,35 @@ def test_a_run_takes_the_chosen_model_and_refuses_a_strange_id(client, monkeypat
     assert client.post("/api/runs", json={"learner_id": lid}).status_code == 200 and "model" not in started[1]
     bad = client.post("/api/runs", json={"learner_id": lid, "model": "x; rm -rf / \n"})
     assert bad.status_code == 400 and len(started) == 2
+
+
+# ---------------------------------------------------------------- invented names
+
+def test_learners_get_invented_names_that_only_the_teacher_app_shows(client):
+    shown = client.get("/api/learners").json()["learners"]
+    names = [row["name"] for row in shown]
+    assert len(set(names)) == len(names) == 6 and all(n.endswith(".") and not n.startswith("Learner") for n in names)
+    assert all(row["alias"].startswith("Learner ") for row in shown)          # the record code is still there
+    a17 = next(row for row in shown if row["alias"] == "Learner A-17")
+    assert a17["name"] == synth.invented_name(0) == "Amani K."               # the same child every time
+    # No tool result carries a name: an MCP client and the model only ever get the alias.
+    listed = tools.list_learners()["learners"]
+    assert all("name" not in row and "display_name" not in row for row in listed)
+    timeline = tools.get_learner_timeline(learner_id=a17["learner_id"], limit=3)
+    assert "display_name" not in timeline["learner"] and "Amani" not in str(timeline)
+    page = client.get(f"/learners/{a17['learner_id']}/report").text
+    assert "Learning report: Amani K." in page and "Record code A-17" in page
+
+
+def test_a_database_made_before_names_existed_still_opens(tmp_path):
+    import sqlite3
+    old = tmp_path / "old.db"
+    with sqlite3.connect(old) as conn:
+        conn.execute("CREATE TABLE learners (id TEXT PRIMARY KEY, alias TEXT NOT NULL, pack_id TEXT NOT NULL, "
+                     "start_year INTEGER NOT NULL, start_grade INTEGER NOT NULL, home_language TEXT NOT NULL DEFAULT 'en', "
+                     "created_at TEXT NOT NULL)")
+        conn.execute("INSERT INTO learners VALUES ('lrn_1', 'Learner A-01', 'generic-maths', 2021, 3, 'en', 'x')")
+    with db.connect(old) as conn:
+        row = db.one(conn, "SELECT alias, display_name FROM learners")
+        rows = tools.learner_rows(conn, names=True)
+    assert row == {"alias": "Learner A-01", "display_name": None} and rows[0]["name"] == "Learner A-01"

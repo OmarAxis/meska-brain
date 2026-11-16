@@ -2,7 +2,7 @@
 taught what and how, and where teachers have approved findings.
 
 It aggregates by topic, never by learner. A learner appears on it only where a named teacher has
-approved a finding about a topic, by alias and with no score. Nothing here ranks or compares learners."""
+approved a finding about a topic, with no score. Nothing here ranks or compares learners."""
 
 from __future__ import annotations
 
@@ -38,7 +38,7 @@ def _finding_topics(kind: str, concept_ids: list[str]) -> list[str]:
 def school_graph(db_path=None) -> dict[str, Any]:
     """Nodes, links and totals for drawing the school map."""
     with db.connect(db_path) as conn:
-        learners = db.rows(conn, "SELECT id, alias, pack_id FROM learners ORDER BY alias COLLATE NOCASE, id")
+        learners = db.rows(conn, "SELECT id, alias, display_name, pack_id FROM learners ORDER BY alias COLLATE NOCASE, id")
         scored = db.rows(conn, "SELECT learner_id, concept_id, score FROM evidence "
                                "WHERE status = 'active' AND score IS NOT NULL AND concept_id IS NOT NULL")
         units = db.rows(conn, "SELECT u.concept_id, u.approach_id, u.teacher_id, t.name AS teacher FROM teaching_units u "
@@ -50,6 +50,7 @@ def school_graph(db_path=None) -> dict[str, Any]:
                 "totals": {"learners": 0, "topics": 0, "topics_with_records": 0, "approved_findings": 0}}
     pack = load_pack(learners[0]["pack_id"])
     alias = {row["id"]: row["alias"] for row in learners}
+    shown = {row["id"]: row["display_name"] or row["alias"] for row in learners}
 
     scores: dict[str, list[float]] = defaultdict(list)
     seen_by: dict[str, set[str]] = defaultdict(set)
@@ -65,6 +66,7 @@ def school_graph(db_path=None) -> dict[str, Any]:
         for topic in _finding_topics(finding["kind"], db.jload(finding["concept_ids"], [])):
             counts[topic][finding["kind"]] += 1
             links[topic].append({"learner_id": finding["learner_id"], "alias": alias.get(finding["learner_id"], "?"),
+                                 "name": shown.get(finding["learner_id"], "?"),
                                  "kind": finding["kind"]})
 
     nodes: list[dict[str, Any]] = []

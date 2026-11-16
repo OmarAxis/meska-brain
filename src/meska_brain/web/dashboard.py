@@ -18,7 +18,7 @@ def _mean(values: list[float]) -> float | None:
 
 def overview(db_path=None) -> dict[str, Any]:
     with db.connect(db_path) as conn:
-        learners = db.rows(conn, "SELECT id, alias, pack_id, home_language, start_grade FROM learners "
+        learners = db.rows(conn, "SELECT id, alias, display_name, pack_id, home_language, start_grade FROM learners "
                                  "ORDER BY alias COLLATE NOCASE, id")
         evidence = db.rows(conn, "SELECT learner_id, kind, period_ord, grade, concept_id, score, language "
                                  "FROM evidence WHERE status != 'retracted'")
@@ -73,7 +73,8 @@ def overview(db_path=None) -> dict[str, Any]:
     roster = []
     for row in learners:
         mine = per_learner.get(row["id"], {"n": 0, "periods": set(), "last": None})
-        roster.append({"learner_id": row["id"], "alias": row["alias"], "home_language": row["home_language"],
+        roster.append({"learner_id": row["id"], "alias": row["alias"], "name": row["display_name"] or row["alias"],
+                       "home_language": row["home_language"],
                        "records": mine["n"], "terms": len(mine["periods"]),
                        "last_period": db.period_label(mine["last"]) if mine["last"] else None,
                        "waiting": pending.get(row["id"], 0), "approved": approved.get(row["id"], 0)})
@@ -149,7 +150,8 @@ def learner_dashboard(learner_id: str, db_path=None) -> dict[str, Any]:
 
     count = lambda rows, *names: sum(r["n"] for r in rows if r["status"] in names)
     return {
-        "learner": {"learner_id": learner_id, "alias": learner["alias"], "home_language": learner["home_language"],
+        "learner": {"learner_id": learner_id, "alias": learner["alias"],
+                    "name": learner.get("display_name") or learner["alias"], "home_language": learner["home_language"],
                     "grade_now": max(grade_of.values()) if grade_of else learner["start_grade"],
                     "curriculum": pack.name},
         "totals": {"records": len(evidence), "terms": len(periods),

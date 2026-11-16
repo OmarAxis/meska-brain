@@ -1,7 +1,9 @@
 -- Meska Brain storage. One SQLite file. The knowledge graph is these tables plus the
 -- curriculum pack (concept nodes and prerequisite edges) loaded from packs/<id>/pack.yaml.
 -- Node types: learner, teacher, concept, skill, evidence, finding.
--- Never store a learner's real name. `alias` is a display handle chosen by the school.
+-- `alias` is the handle used everywhere a record is written, read by the agent or sent to a model.
+-- `display_name` is shown to teachers only. In the synthetic data it is an invented first name and an
+-- initial. The MCP tools never return it, so no model and no MCP client ever sees a name.
 
 PRAGMA journal_mode = WAL;
 PRAGMA foreign_keys = ON;
@@ -9,6 +11,7 @@ PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS learners (
   id            TEXT PRIMARY KEY,            -- lrn_xxxx
   alias         TEXT NOT NULL,               -- e.g. "Learner A-17", never a legal name
+  display_name  TEXT,                        -- shown in the teacher app only; never leaves through a tool
   pack_id       TEXT NOT NULL,               -- curriculum pack the learner follows
   start_year    INTEGER NOT NULL,            -- calendar year of first record
   start_grade   INTEGER NOT NULL,
