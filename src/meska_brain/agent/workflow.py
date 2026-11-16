@@ -38,7 +38,7 @@ from .. import db, guard
 from ..curriculum import load_pack
 from . import prompts
 from .language import language_name, looks_like
-from .llm import Usage, timed_invoke
+from .llm import Usage, structured, text_of, timed_invoke
 from .mcp_io import McpHub, ToolError
 
 ANALYSIS_TOOLS = ["find_patterns", "trace_root", "what_worked", "get_learner_timeline"]
@@ -199,7 +199,7 @@ async def _ask_period(llm, usage: Usage, text: str) -> tuple[int | None, int | N
                 "'الفصل الأول'. Use null when the document does not say.\n\nDOCUMENT:\n" + text[:3000])
     started = time.perf_counter()
     try:
-        out = await llm.with_structured_output(Period, method="json_schema", include_raw=True).ainvoke(question)
+        out = await structured(llm, Period).ainvoke(question)
     except Exception:  # noqa: BLE001
         return None, None
     usage.add("extract_evidence#period", out.get("raw"), time.perf_counter() - started)
@@ -234,13 +234,13 @@ async def extract_evidence(state: RunState) -> dict:
         HumanMessage(f"TARGET LEARNER: {learner.get('alias')}\n\nCONCEPTS:\n{_concept_menu(pack, learner.get('grade_now'))}"
                      f"{context}\n\nDOCUMENT ({Path(state['inbox_file']).name}):\n{text[:8000]}"),
     ]
-    structured = llm.with_structured_output(Extraction, method="json_schema", include_raw=True)
+    reader = structured(llm, Extraction)
     table_rows = _table_row_count(text)
     extraction, error, notes = None, None, []
     for attempt in (1, 2, 3):
         started = time.perf_counter()
         try:
-            out = await structured.ainvoke(messages)
+            out = await reader.ainvoke(messages)
         except Exception as exc:  # noqa: BLE001 - the model being down must not end the run
             error = f"{type(exc).__name__}: {exc}"
             break
@@ -466,7 +466,7 @@ async def ask_for_records(state: RunState) -> dict:
             reply = await timed_invoke(llm, messages, usage, "ask_for_records")
         except Exception:  # noqa: BLE001 - the template below is always available
             break
-        question = (reply.content or "").strip().strip('"')
+        question = text_of(reply).strip().strip('"')
         problems = guard.check_statement(question) if question else ["empty"]
         if not problems and "?" not in question:
             problems = ["it is not a question"]
@@ -687,7 +687,7 @@ async def compose_findings(state: RunState) -> dict:
                 reply = await timed_invoke(llm, messages, usage, "compose_findings")
             except Exception:  # noqa: BLE001
                 break
-            statement = (reply.content or "").strip().strip('"')
+            statement = text_of(reply).strip().strip('"')
             problems = guard.check_statement(statement) if statement else ["empty"]
             if not problems:
                 break
@@ -798,7 +798,7 @@ async def draft_summaries(state: RunState) -> dict:
                 reply = await timed_invoke(llm, messages, usage, "draft_summaries")
             except Exception:  # noqa: BLE001
                 break
-            text = (reply.content or "").strip()
+            text = text_of(reply).strip()
             problems = guard.check_statement(text) if text else ["empty"]
             if not problems and not looks_like(text, language):
                 problems = [f"the note is not written in {language_name(language)}"]

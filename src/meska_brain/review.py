@@ -7,6 +7,8 @@ from __future__ import annotations
 import time
 
 from . import audit, db, guard
+from .curriculum import load_pack
+from .explain import explain
 
 FINDING_DECISIONS = ("approved", "edited", "rejected")
 SUMMARY_DECISIONS = ("approved", "rejected")
@@ -14,12 +16,15 @@ REQUEST_ANSWERS = ("provided", "no_record")
 
 
 def expand_finding(conn, finding: dict) -> dict:
-    """A finding with its JSON fields decoded and its cited evidence rows attached."""
+    """A finding with its JSON fields decoded, its cited evidence rows attached, and a plain
+    explanation computed from those rows (never from a model)."""
     finding = dict(finding, concept_ids=db.jload(finding["concept_ids"], []),
                    evidence_ids=db.jload(finding["evidence_ids"], []), path=db.jload(finding["path"], []))
     marks = ",".join("?" for _ in finding["evidence_ids"])
     finding["evidence"] = db.rows(conn, f"SELECT * FROM evidence WHERE id IN ({marks}) ORDER BY period_ord, id",
                                   tuple(finding["evidence_ids"])) if marks else []
+    learner = db.one(conn, "SELECT pack_id FROM learners WHERE id = ?", (finding["learner_id"],))
+    finding["explain"] = explain(finding, load_pack(learner["pack_id"])) if learner else None
     return finding
 
 
@@ -35,7 +40,7 @@ def pending(db_path=None) -> dict:
                 expand_finding(conn, f) for f in db.rows(
                     conn, f"SELECT * FROM findings WHERE id IN ({','.join('?' for _ in ids)})", tuple(ids))])
             summaries.append(summary)
-        requests = db.rows(conn, "SELECT r.*, l.alias AS learner_alias FROM record_requests r "
+        requests = db.rows(conn, "SELECT r.*, l.alias AS learner_alias, l.display_name AS learner_display_name FROM record_requests r "
                                  "JOIN learners l ON l.id = r.learner_id WHERE r.status = 'open' "
                                  "ORDER BY r.asked_at, r.id")
     return {"findings": findings, "summaries": summaries, "requests": requests}

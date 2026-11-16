@@ -68,6 +68,11 @@ class RunRequest(BaseModel):
     learner_id: str
     inbox_file: str | None = None
     model: str | None = None
+    provider: str | None = None
+
+
+class ProviderKey(BaseModel):
+    key: str
 
 
 def _runner():
@@ -89,7 +94,7 @@ def _learner_exists(conn, learner_id: str) -> None:
 @app.get("/api/learners")
 def learners() -> dict:
     with db.connect() as conn:
-        return {"learners": tools.learner_rows(conn)}
+        return {"learners": tools.learner_rows(conn, names=True)}
 
 
 @app.get("/api/overview")
@@ -224,6 +229,7 @@ def review_pending() -> dict:
     for finding in data["findings"]:
         finding["next_step"] = people.next_step(finding, load_pack(packs[finding["learner_id"]]))
     for request in data["requests"]:
+        request["learner_name"] = request.pop("learner_display_name", None) or request["learner_alias"]
         pack = load_pack(packs[request["learner_id"]])
         request["concept_label"] = pack.label(request["concept_id"])
         request["grade"] = pack.concepts[request["concept_id"]].grade if request["concept_id"] in pack.concepts else None
@@ -370,6 +376,13 @@ def start_run(body: RunRequest) -> dict:
         if not _MODEL_ID.fullmatch(body.model):
             raise ValueError("That model id has characters a model id cannot have.")
         task["model"] = body.model
+    if body.provider and body.provider != "local":
+        from ..agent import llm
+        if body.provider not in llm.PROVIDERS:
+            raise ValueError(f"Unknown model provider '{body.provider}'.")
+        if not llm.key_source(body.provider):
+            raise ValueError(f"No key for {llm.PROVIDERS[body.provider].label}. Add one on the Agent page first.")
+        task["which_model"] = body.provider
     return _runner().start(task)
 
 
@@ -382,7 +395,46 @@ def models() -> dict:
         found, problem = llm.list_models(), None
     except Exception as exc:  # noqa: BLE001 - the endpoint being off must not break the page
         found, problem = [], f"The model endpoint at {settings.llm_base_url} did not answer ({type(exc).__name__})."
-    return {"default": settings.llm_model, "models": found, "endpoint": settings.llm_base_url, "problem": problem}
+    return {"default": settings.llm_model, "models": found, "endpoint": settings.llm_base_url, "problem": problem,
+            "providers": _providers(found, problem)}
+
+
+def _providers(local_models: list[str], local_problem: str | None) -> list[dict]:
+    """Every place a model can come from, whether it is ready, and what it offers. Never a key."""
+    from ..agent import llm
+    settings = get_settings()
+    out = [{"id": "local", "label": llm.PROVIDERS["local"].label, "cloud": False, "ready": not local_problem,
+            "key_source": None, "models": list(dict.fromkeys([settings.llm_model, *local_models])),
+            "problem": local_problem}]
+    for provider in (p for p in llm.PROVIDERS.values() if p.cloud):
+        source, offered, trouble = llm.key_source(provider.id), [], None
+        if source:
+            try:
+                offered = llm.list_models(provider.id)
+            except Exception as exc:  # noqa: BLE001 - a provider being down or refusing the key must not break the page
+                trouble = f"{provider.label} did not list its models ({type(exc).__name__}). Check the key."
+                offered = llm.CLAUDE_FALLBACK if provider.id == "anthropic" else []
+        out.append({"id": provider.id, "label": provider.label, "cloud": True, "ready": bool(source),
+                    "key_source": source, "key_env": provider.key_env, "models": offered, "problem": trouble})
+    return out
+
+
+@app.post("/api/providers/{provider}/key")
+def set_provider_key(provider: str, body: ProviderKey) -> dict:
+    """Keep a cloud provider key in memory for this session. It is not saved and never returned."""
+    from .. import audit
+    from ..agent import llm
+    llm.set_key(provider, body.key)
+    audit.log_call("set_model_key", {"provider": provider}, {"kept": "in memory until the app stops"}, True, 0,
+                   actor="teacher-app")
+    return {"provider": provider, "ready": True, "key_source": llm.key_source(provider)}
+
+
+@app.delete("/api/providers/{provider}/key")
+def forget_provider_key(provider: str) -> dict:
+    from ..agent import llm
+    llm.forget_key(provider)
+    return {"provider": provider, "ready": bool(llm.key_source(provider)), "key_source": llm.key_source(provider)}
 
 
 @app.get("/api/runs")

@@ -134,11 +134,13 @@ def _print_run(record: dict) -> None:
 @app.command()
 def run(learner: str, file: Path | None = typer.Option(None, help="A new document to ingest first."),
         frontier: bool = typer.Option(False, help="Use the optional frontier model instead of the local one."),
-        model: str | None = typer.Option(None, help="Model id to use.")) -> None:
+        model: str | None = typer.Option(None, help="Model id to use."),
+        provider: str = typer.Option("local", help="local (open weights, the default), openai or anthropic. The cloud "
+                                                   "ones read OPENAI_API_KEY or ANTHROPIC_API_KEY and send documents out.")) -> None:
     """Run the agent for one learner until it finishes or stops for a teacher."""
     _ensure_seeded()
     from .agent import runner
-    task = {"learner_id": _resolve_learner(learner), "which_model": "frontier" if frontier else "local"}
+    task = {"learner_id": _resolve_learner(learner), "which_model": "frontier" if frontier else provider}
     if file:
         task["inbox_file"] = str(file.resolve())
     if model:

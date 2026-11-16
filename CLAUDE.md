@@ -35,12 +35,13 @@ Who does what:
 | `src/meska_brain/agent/workflow.py` | The LangGraph agent: the ask-for-a-record loop and two teacher gates |
 | `src/meska_brain/agent/runner.py` | Starts, pauses and resumes runs |
 | `src/meska_brain/agent/llm.py` | Model access (any OpenAI-compatible endpoint) |
+| `src/meska_brain/explain.py` | Why a finding says what it says: plain facts and chart data, computed from its records |
 | `src/meska_brain/report.py` | Printable learner report, built from approved findings only |
 | `src/meska_brain/school.py` | Whole-school map by topic (never ranks learners) and its GraphML export |
 | `src/meska_brain/web/` | Teacher web app (FastAPI and one HTML file) |
 | `src/meska_brain/synth.py` | Synthetic cohort and sample documents |
 | `src/meska_brain/evals.py` | The evaluation set that writes `EVALS.md` |
-| `tests/` | 203 tests, no model needed |
+| `tests/` | 219 tests, no model needed |
 
 ## Commands
 
@@ -77,6 +78,9 @@ MESKA_LLM_REASONING  set to "default" for hosted APIs
 `MESKA_LLM_REASONING=default` matters: by default the code sends `reasoning_effort: "none"`, which
 LM Studio accepts and some hosted APIs reject.
 
+The Agent page can also use OpenAI or Claude for a run, as a comparison. A key is read from `OPENAI_API_KEY` or
+`ANTHROPIC_API_KEY`, or typed on the page, where it is kept in memory only. See `SECURITY.md`.
+
 Prefer an open-weights model (Qwen, Llama, Gemma, Mistral) from a host such as OpenRouter, Groq or
 Together. The challenge requires a full task on open weights, so numbers that go into `EVALS.md`
 must come from an open-weights model. A closed model is fine for exploring, but say which model
@@ -87,7 +91,8 @@ produced any result you report.
 These come from the challenge. Breaking one disqualifies the entry.
 
 1. **Never commit a key.** No `.env` file, no key in code, docs, tests or commit messages. The repo is public.
-2. **Synthetic data only.** No real learner data, ever. Learners are known by alias (A-17).
+2. **Synthetic data only.** No real learner data, ever. A learner's record code is the alias (A-17). The names in
+   the teacher app and the report are invented, and no tool result and no model prompt ever carries a name.
 3. **The agent never labels a child or assigns a track.** Do not weaken `guard.py` or the two teacher gates.
 4. **No unsourced claim.** Every finding cites evidence ids, and those ids come from the tools, never from the model.
 5. **Every tool call is logged.** New tools must use `@audited`.

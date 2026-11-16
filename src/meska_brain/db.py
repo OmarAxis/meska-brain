@@ -45,6 +45,8 @@ def connect(db_path: Path | str | None = None) -> Iterator[sqlite3.Connection]:
     if str(path) not in _schema_checked:
         # Once per file per process: a database made by an older version gains any new table.
         conn.executescript(_SCHEMA.read_text(encoding="utf-8"))
+        if "display_name" not in {column[1] for column in conn.execute("PRAGMA table_info(learners)")}:
+            conn.execute("ALTER TABLE learners ADD COLUMN display_name TEXT")   # added after the first release
         _schema_checked.add(str(path))
     conn.execute("PRAGMA foreign_keys = ON")
     try:

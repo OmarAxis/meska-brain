@@ -39,15 +39,17 @@ def _check_text(text: str, what: str) -> None:
         raise ValueError(f"The {what} was rejected: " + " | ".join(problems))
 
 
-def learner_rows(conn) -> list[dict]:
+def learner_rows(conn, names: bool = False) -> list[dict]:
     """Every learner with the grade of their latest evidence. Shared with the web app, which
-    lists learners for a teacher without writing an agent row to the audit log."""
+    lists learners for a teacher without writing an agent row to the audit log. Only the web app
+    asks for `names`: an MCP client gets aliases and nothing else."""
     found = db.rows(conn, """
-        SELECT l.id AS learner_id, l.alias, l.home_language, l.start_grade,
+        SELECT l.id AS learner_id, l.alias, l.display_name, l.home_language, l.start_grade,
                MAX(e.grade) AS latest_grade, COUNT(e.id) AS evidence_count
         FROM learners l LEFT JOIN evidence e ON e.learner_id = l.id AND e.status != 'retracted'
         GROUP BY l.id ORDER BY l.alias COLLATE NOCASE, l.id""")
     return [{"learner_id": r["learner_id"], "alias": r["alias"],
+             **({"name": r["display_name"] or r["alias"]} if names else {}),
              "grade_now": r["latest_grade"] or r["start_grade"],
              "home_language": r["home_language"], "evidence_count": r["evidence_count"]} for r in found]
 
@@ -92,6 +94,7 @@ def get_learner_timeline(*, learner_id: str, since_year: int | None = None, conc
     by_kind: dict[str, int] = {}
     for item in items:
         by_kind[item["kind"]] = by_kind.get(item["kind"], 0) + 1
+    learner.pop("display_name", None)   # a name is for the teacher's screen, never for a tool result
     return {"learner": learner,
             "periods": [{"period": p, "items": rows} for p, rows in periods.items()],
             "counts": {"items": len(items), "by_kind": by_kind,

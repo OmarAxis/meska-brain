@@ -14,7 +14,7 @@ from html import escape
 from pathlib import Path
 from typing import Any
 
-from . import db
+from . import db, review
 from .curriculum import load_pack
 
 KIND_TITLE = {"strength": "A strength held over time", "root_cause": "Where a difficulty may have started",
@@ -28,11 +28,7 @@ RTL = {"ar", "fa", "ur", "he"}
 _LOGO = Path(__file__).parent / "web" / "static" / "brand" / "meska-white.png"
 
 
-def _cited(conn, pack, evidence_ids: list[str]) -> list[dict]:
-    if not evidence_ids:
-        return []
-    marks = ",".join("?" for _ in evidence_ids)
-    rows = db.rows(conn, f"SELECT * FROM evidence WHERE id IN ({marks}) ORDER BY period_ord, id", tuple(evidence_ids))
+def _cited(pack, rows: list[dict]) -> list[dict]:
     return [{"id": r["id"], "period": db.period_label(r["period_ord"]), "kind": r["kind"],
              "topic": pack.label(r["concept_id"]) if r["concept_id"] else "",
              "score": r["score"], "absent_days": r["absent_days"], "text": r["raw_text"],
@@ -54,8 +50,9 @@ def build(learner_id: str, *, db_path=None) -> dict[str, Any]:
                            (learner_id,))
         findings = []
         for f in sorted(approved, key=lambda f: KIND_ORDER.index(f["kind"])):
-            cited = _cited(conn, pack, db.jload(f["evidence_ids"], []))
-            findings.append({"id": f["id"], "kind": f["kind"], "statement": f["statement"], "teacher": f["teacher"],
+            expanded = review.expand_finding(conn, f)
+            cited = _cited(pack, expanded["evidence"])
+            findings.append({"explain": expanded["explain"], "id": f["id"], "kind": f["kind"], "statement": f["statement"], "teacher": f["teacher"],
                              "decided_at": f["decided_at"], "edited": f["status"] == "edited", "note": f["teacher_note"],
                              "records": cited[:MAX_RECORDS_SHOWN], "records_total": len(cited)})
         notes = db.rows(conn, "SELECT s.audience, s.language, s.text, s.decided_at, t.name AS teacher FROM summaries s "
@@ -80,7 +77,8 @@ def build(learner_id: str, *, db_path=None) -> dict[str, Any]:
                for strand, values in by_strand.items()]
     return {
         "strands": strands,
-        "learner": {"learner_id": learner_id, "alias": learner["alias"], "home_language": learner["home_language"],
+        "learner": {"learner_id": learner_id, "alias": learner["alias"],
+                    "name": learner.get("display_name") or learner["alias"], "home_language": learner["home_language"],
                     "grade_now": span["grade"] or learner["start_grade"], "curriculum": pack.name},
         "span": {"records": span["records"], "terms": span["terms"], "days_absent": span["absent"],
                  "first_period": db.period_label(span["first"]) if span["first"] is not None else None,
@@ -172,7 +170,9 @@ def graph_svg(data: dict[str, Any]) -> str:
         width = 16 + 7.2 * len(label)
         nodes.append(f'<rect x="{x - width / 2:.1f}" y="{y - 13:.1f}" width="{width:.1f}" height="26" rx="13" fill="#FFFFFF" stroke="#2871F4" stroke-width="2"/>'
                      f'<text x="{x:.1f}" y="{y + 4:.1f}" text-anchor="middle" font-size="12" font-weight="700" fill="#0A0A0A">{escape(label)}</text>')
-    alias = escape(data["learner"]["alias"].split()[-1])
+    learner = data["learner"]
+    named = learner.get("name") and learner["name"] != learner["alias"]
+    alias = escape(learner["name"].split()[0] if named else learner["alias"].split()[-1])
     centre = (f'<circle cx="{CX}" cy="{CY}" r="44" fill="#000038"/><circle cx="{CX}" cy="{CY}" r="50" fill="none" stroke="#2871F4" stroke-width="2"/>'
               f'<text x="{CX}" y="{CY - 3}" text-anchor="middle" font-size="11" fill="#FFFFFF" opacity=".85">Learner</text>'
               f'<text x="{CX}" y="{CY + 15}" text-anchor="middle" font-size="18" font-weight="700" fill="#FFFFFF">{alias}</text>')
@@ -189,6 +189,49 @@ def graph_svg(data: dict[str, Any]) -> str:
     return (f'<svg class="graph" viewBox="0 0 860 645" role="img" aria-label="Knowledge graph of the records. {escape(summary)}" '
             f'font-family="inherit" style="-webkit-print-color-adjust:exact;print-color-adjust:exact">'
             f'{"".join(lines)}{centre}{"".join(nodes)}{legend}</svg>')
+
+
+def term_chart_svg(series: list[dict]) -> str:
+    """Results term by term for the records behind one finding: one column per term, the average on top."""
+    if not series:
+        return ""
+    step, base, top = 54, 96, 16
+    width = 34 + step * len(series)
+    parts = [f'<line x1="20" y1="{base}" x2="{width - 6}" y2="{base}" stroke="#9AA4B8" stroke-width="1"/>']
+    for i, point in enumerate(series):
+        x = 30 + i * step
+        height = max(2.0, (base - top) * point["mean"])
+        fill, _ = _shade(point["mean"])
+        parts.append(f'<rect x="{x}" y="{base - height:.1f}" width="32" height="{height:.1f}" rx="4" fill="{fill}" stroke="#5C93F6" stroke-width="1"/>'
+                     f'<text x="{x + 16}" y="{base - height - 4:.1f}" text-anchor="middle" font-size="11" font-weight="700" fill="#0A0A0A">{round(point["mean"] * 100)}%</text>'
+                     f'<text x="{x + 16}" y="{base + 14}" text-anchor="middle" font-size="10" fill="#5B6478">{escape(point["period"][2:])}</text>')
+    label = "Results term by term: " + ", ".join(f"{p['period']} {round(p['mean'] * 100)}%" for p in series)
+    return (f'<svg class="terms" viewBox="0 0 {width} 116" width="{width}" height="116" role="img" aria-label="{escape(label)}" '
+            f'font-family="inherit" style="-webkit-print-color-adjust:exact;print-color-adjust:exact">{"".join(parts)}</svg>')
+
+
+def _chain(chain: list[dict]) -> str:
+    """Where it began, on the left, to where it shows now, on the right."""
+    if not chain:
+        return ""
+    chips = []
+    for i, topic in enumerate(chain):
+        tag = "Began here" if i == 0 else "Shows up here now" if i == len(chain) - 1 else "On the way"
+        result = f"{round(topic['mean'] * 100)}% on record" if topic["mean"] is not None else "no records cited"
+        edge = " start" if i == 0 else ""
+        chips.append(f'<div class="chip{edge}"><span class="tag">{tag}</span><strong>{escape(topic["label"])}</strong>'
+                     f'<span>Grade {topic["grade"]}, {result}</span></div>')
+    return '<div class="chain" role="img" aria-label="' + escape(" then ".join(t["label"] for t in chain)) + '">' + \
+        '<span class="arrow" aria-hidden="true">is needed for</span>'.join(chips) + "</div>"
+
+
+def _why(explained: dict | None) -> str:
+    if not explained:
+        return ""
+    facts = "".join(f"<li>{escape(fact)}</li>" for fact in explained["facts"])
+    chart = term_chart_svg(explained["series"])
+    chart = f'<div class="chartbox"><div class="small">Results on the cited records, term by term</div>{chart}</div>' if chart else ""
+    return f'{_chain(explained["chain"])}<div class="why"><div><div class="small"><strong>Why this is suggested</strong></div><ul>{facts}</ul></div>{chart}</div>'
 
 
 # ---------------------------------------------------------------- HTML
@@ -209,6 +252,16 @@ h2{font-size:17px;margin:28px 0 10px;padding-bottom:6px;border-bottom:2px solid 
 .facts dt{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#5B6478}
 .facts dd{margin:2px 0 0;font-size:18px;font-weight:700}
 .graph{display:block;width:100%;height:auto;break-inside:avoid}
+.chain{display:flex;flex-wrap:wrap;align-items:stretch;gap:6px;margin:10px 0}
+.chip{border:1px solid #C5D9FC;border-radius:12px;padding:6px 10px;display:flex;flex-direction:column;font-size:12px;background:#fff}
+.chip.start{border:2px solid #A63F00}
+.chip .tag{font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:#5B6478;font-weight:700}
+.chip.start .tag{color:#A63F00}
+.arrow{align-self:center;font-size:11px;color:#5B6478}
+.arrow::after{content:" \\2192"}
+.why{display:flex;flex-wrap:wrap;gap:8px 24px;align-items:flex-start;margin:6px 0 4px}
+.why ul{margin:4px 0;padding-left:18px;font-size:13px;max-width:430px}
+.terms{display:block;max-width:100%;height:auto}
 .finding{border:1px solid #E3E8F2;border-radius:14px;padding:14px 16px;margin:0 0 12px;break-inside:avoid}
 .kind{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#1B5BD6;font-weight:700}
 .statement{font-size:16px;margin:4px 0 6px}
@@ -259,7 +312,7 @@ def _finding(f: dict) -> str:
     how = "Edited and approved" if f["edited"] else "Approved"
     note = f' Teacher\'s note: {escape(f["note"])}' if f["note"] else ""
     return (f'<section class="finding"><div class="kind">{escape(KIND_TITLE.get(f["kind"], f["kind"]))}</div>'
-            f'<p class="statement">{escape(f["statement"])}</p>'
+            f'<p class="statement">{escape(f["statement"])}</p>{_why(f.get("explain"))}'
             f'<p class="by">{how} by {escape(f["teacher"] or "a teacher")} on {escape(_when(f["decided_at"]))}. '
             f'Rests on {f["records_total"]} records.{note}</p>'
             f'<table><thead><tr><th>Term</th><th>Record</th><th>Topic</th><th>Result</th><th>Words on the record</th>'
@@ -283,6 +336,8 @@ def _gap(g: dict) -> str:
 def render_html(data: dict[str, Any]) -> str:
     """One self-contained page: no script except the print button, no outside files."""
     learner, span = data["learner"], data["span"]
+    shown = learner.get("name") or learner["alias"]
+    code = f'Record code {learner["alias"].split()[-1]}. ' if shown != learner["alias"] else ""
     followed = (f'{span["first_period"]} to {span["last_period"]}' if span["first_period"] else "no dated records yet")
     findings = "".join(_finding(f) for f in data["findings"]) or \
         '<p class="empty">No finding has been approved by a teacher yet, so there is nothing to report.</p>'
@@ -293,10 +348,10 @@ def render_html(data: dict[str, Any]) -> str:
                if count else "")
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Learning report: {escape(learner["alias"])}</title><style>{_CSS}</style></head>
+<title>Learning report: {escape(shown)}</title><style>{_CSS}</style></head>
 <body><button class="print" type="button" onclick="window.print()">Print or save as PDF</button>
-<div class="page"><header>{_logo()}<h1>Learning report: {escape(learner["alias"])}</h1>
-<p>Grade {escape(str(learner["grade_now"]))}. {escape(learner["curriculum"])}. Followed {escape(followed)}.</p></header>
+<div class="page"><header>{_logo()}<h1>Learning report: {escape(shown)}</h1>
+<p>{escape(code)}Grade {escape(str(learner["grade_now"]))}. {escape(learner["curriculum"])}. Followed {escape(followed)}.</p></header>
 <main>
 <dl class="facts"><div><dt>Records</dt><dd>{span["records"]}</dd></div><div><dt>Terms followed</dt><dd>{span["terms"]}</dd></div>
 <div><dt>Days absent</dt><dd>{span["days_absent"]}</dd></div><div><dt>Approved findings</dt><dd>{len(data["findings"])}</dd></div></dl>

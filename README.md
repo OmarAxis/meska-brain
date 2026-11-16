@@ -60,7 +60,11 @@ Under **My teaching**, a teacher describes how often they use each teaching appr
 
 **A whole school.** `uv run meska seed --school` builds a larger synthetic school: all four subjects, 36 learners followed over four years, and ten teachers who each teach one subject and have described how they teach. Every teaching unit belongs to a teacher of its subject. The learners and their records are the same as without `--school`; only the staffing is added. `uv run meska report --all` then writes a report for every learner.
 
-**Choosing a model.** The Agent page lists the models your local endpoint serves (LM Studio lists what you have downloaded) and uses the one you pick for that run. Only results from an open-weights model belong in `EVALS.md`.
+**Choosing a model.** The Agent page lists the models your local endpoint serves (LM Studio lists what you have downloaded) and uses the one you pick for that run. It can also use OpenAI or Claude, as a comparison: open "Cloud models" on that page and paste your own key, or set `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` before starting the app. A typed key is kept in memory until the app stops and is never saved. A cloud run sends the document and the records to that company, so use it with synthetic data only. Only results from an open-weights model belong in `EVALS.md`.
+
+**Names.** Learners are shown by an invented first name and an initial ("Amani K."), so a class reads like a class. Each also has a record code (A-17), which is what documents, the tools and the model use. No tool result and no prompt carries a name.
+
+**Why a finding says what it says.** Each finding in the review queue, on the Approved page and in the report shows short plain facts, a chart of the cited results term by term, and for a root cause the chain of topics from where the difficulty began to where it shows now. These are computed from the records the finding cites. No model writes them.
 
 For a presentation, `uv run meska story` builds a ready state on a freshly seeded database: the engine's findings for three learners, some approved and some waiting. No model is used, the wording comes from fixed templates, and every step is logged with the actor `demo-setup` so it cannot be mistaken for the agent's work or a real teacher's decision. `uv run meska seed` wipes it.
 
@@ -202,6 +206,7 @@ src/meska_brain/
   curriculum.py    loads and validates a curriculum pack (a DAG of concepts)
   guard.py         word-and-pattern list: labels, class comparisons, track assignments
   review.py        teacher decisions (not exposed over MCP)
+  explain.py       why a finding says what it says: plain facts and chart data from its records
   report.py        the printable learner report, from approved findings only
   school.py        the whole-school map by topic, and its GraphML export
   audit.py         @audited, writes audit_log

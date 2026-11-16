@@ -91,8 +91,9 @@ def test_school_graph_adds_up_by_topic_and_names_learners_only_through_approved_
     after = {n["id"]: n for n in school.school_graph(db_path)["nodes"] if n["type"] == "concept"}
     assert after["division"]["findings"]["root_cause"] == 1          # placed on the root, not on the struggling topic
     assert after["ratios"]["findings"]["root_cause"] == 0
-    assert after["division"]["approved_for"] == [{"learner_id": "lrn_a", "alias": "Learner A-01", "kind": "root_cause"}]
-    assert set(after["division"]["approved_for"][0]) == {"learner_id", "alias", "kind"}
+    assert after["division"]["approved_for"] == [
+        {"learner_id": "lrn_a", "alias": "Learner A-01", "name": "Learner A-01", "kind": "root_cause"}]
+    assert set(after["division"]["approved_for"][0]) == {"learner_id", "alias", "name", "kind"}   # and never a score
 
 
 def test_school_graph_of_an_empty_school(tmp_path):

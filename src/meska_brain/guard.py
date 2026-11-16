@@ -21,6 +21,7 @@ _GROUP = r"(?:class|group|year|grade|school|set)"
 LABELS_EN = [
     r"lazy", r"gifted", r"genius", r"stupid", r"dumb", r"unintelligent", r"unmotivated", r"troublemaker",
     r"hopeless", r"incapable", r"talented",
+    r"shows? (?:great |real |a lot of |much |some |little |no )?promise",   # found in a drafted note during hand testing
     (rf"(?:slow|weak|poor|bad|good|strong|able|top|star|model|best|worst|struggling|bright|average|lazy|"
      rf"clever|smart|gifted) {_WHO}"),
     r"not (?:very |so |that |particularly |really )?(?:bright|clever|smart|able)",
