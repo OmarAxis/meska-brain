@@ -49,7 +49,8 @@ Built for the teacher, in service of the learner, adopted by the school.
 
 ## What you will see in the demo
 
-1. **Class overview.** Twelve learners followed over four years, thousands of records, four subjects.
+1. **Class overview and school map.** Twelve learners followed over four years, thousands of records, four
+   subjects. The school map shows the whole curriculum and where teachers have agreed difficulties begin.
 2. **One learner's long view.** Results by subject and strand, term by term, and a knowledge graph of
    everything connected to that learner.
 3. **Rewind.** Drag the term slider back. The grade 3 gap was visible years before the grade 6 struggle.

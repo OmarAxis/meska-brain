@@ -45,6 +45,10 @@ It is general for school grades. The demo pack is school mathematics, grades 1 t
 
 Approved findings and notes for a learner are listed under **Approved**, with who approved each one.
 
+**Printable report.** On a learner's Profile and Approved pages, **Printable report** opens one page built only from what a named teacher has approved: each finding with the teacher's name, the date and the records it rests on, the approved notes, and what the records cannot tell. Nothing proposed or waiting is on it. Print it or save it as a PDF from the browser, or write it to a file with `uv run meska report A-17`.
+
+**School map.** The whole curriculum on one page, coloured by how the class as a whole is doing on each topic. A topic shows who taught it and with which approach, and how many approved findings name it as the place a difficulty began. It adds up records by topic and never ranks learners. A learner is named on it only where a teacher has approved a finding about that topic, by alias and with no score. `uv run meska export-graph` writes the same graph to a GraphML file that Gephi, Cytoscape, yEd or Neo4j can open.
+
 The learner **Profile** also draws a knowledge graph of everything connected to that learner (curriculum strands, thinking skills, teachers, teaching approaches) and lists results by thinking skill. These describe results on record. They are not labels: the page never calls a learner fast, slow, or a type.
 
 Under **My teaching**, a teacher describes how often they use each teaching approach. On a learner's profile, the card **You and this learner** then puts two facts side by side: what was followed by gains for this learner, and how often this teacher says they teach that way. It does not score or rank teachers, and the answers are the teacher's own. Each finding in the review queue also carries **a possible next step**, worded by fixed rules, for the teacher to take or ignore.
@@ -65,6 +69,8 @@ uv run meska resume run_XXXXXXXXXX
 uv run meska pending
 uv run meska decide sum_XXXXXXXXXX approved --teacher tch_XXXXXXXXXX
 uv run meska audit
+uv run meska report A-17          # a printable page, approved findings only
+uv run meska export-graph        # the school graph as a GraphML file
 ```
 
 - `meska run` accepts an alias such as `A-17` or an id. `--frontier` and `--model` are optional.
@@ -187,6 +193,8 @@ src/meska_brain/
   curriculum.py    loads and validates a curriculum pack (a DAG of concepts)
   guard.py         word-and-pattern list: labels, class comparisons, track assignments
   review.py        teacher decisions (not exposed over MCP)
+  report.py        the printable learner report, from approved findings only
+  school.py        the whole-school map by topic, and its GraphML export
   audit.py         @audited, writes audit_log
   db.py, schema.sql, config.py
   synth.py         synthetic cohort and planted test cases

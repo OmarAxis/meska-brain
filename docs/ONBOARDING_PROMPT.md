@@ -19,7 +19,7 @@ Then walk me through the project in these steps. Stop after each step and ask if
 
 2. How it works, without code. Explain the three maps (curriculum, learner, teacher), what the graph engine does, what the AI model does and does not do, and why a teacher approves everything.
 
-3. The features. Go screen by screen through the teacher app: class overview, learner profile, knowledge graph, learning map, patterns, review queue, approved, my teaching, agent, audit log. For each one, say what it shows and why it's there.
+3. The features. Go screen by screen through the teacher app: class overview, school map, learner profile, knowledge graph, learning map, patterns, review queue, approved, the printable report, my teaching, agent, audit log. For each one, say what it shows and why it's there.
 
 4. The challenge rules. List the rules we must meet and the things that would disqualify us, and show me where in the code each rule is met. Be clear about which rules matter most.
 

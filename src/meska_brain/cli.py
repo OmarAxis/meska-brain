@@ -147,6 +147,27 @@ def resume(run_id: str) -> None:
 
 
 @app.command()
+def report(learner: str, out: Path | None = typer.Option(None, help="Where to write the page. Default: reports/<alias>.html")) -> None:
+    """Write a printable report for one learner, from approved findings and notes only."""
+    _ensure_seeded()
+    from . import report as report_module
+    data = report_module.build(_resolve_learner(learner))
+    target = out or Path("reports") / f"{data['learner']['alias'].split()[-1]}.html"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(report_module.render_html(data), encoding="utf-8")
+    console.print(f"Wrote {target} ({len(data['findings'])} approved findings, {len(data['notes'])} approved notes).", highlight=False)
+
+
+@app.command("export-graph")
+def export_graph(out: Path = typer.Option(Path("exports") / "school.graphml", help="GraphML file to write.")) -> None:
+    """Write the whole school graph to a file that Gephi, Cytoscape, yEd or Neo4j can open."""
+    _ensure_seeded()
+    from . import school
+    done = school.export_graph(out)
+    console.print(f"Wrote {out}: {done['nodes']} nodes, {done['edges']} links.", highlight=False)
+
+
+@app.command()
 def answer(request_id: str, teacher: str = typer.Option(..., help="Teacher id. See `meska teachers`."),
            text: str | None = typer.Option(None, help="The record in the teacher's own words."),
            file: str | None = typer.Option(None, help="Name of a file in the inbox."),

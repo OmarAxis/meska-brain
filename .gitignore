@@ -29,3 +29,6 @@ nija-src/
 Thumbs.db
 .vscode/
 .idea/
+# written by `meska report` and `meska export-graph`
+reports/
+exports/

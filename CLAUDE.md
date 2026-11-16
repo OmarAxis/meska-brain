@@ -35,10 +35,12 @@ Who does what:
 | `src/meska_brain/agent/workflow.py` | The LangGraph agent: the ask-for-a-record loop and two teacher gates |
 | `src/meska_brain/agent/runner.py` | Starts, pauses and resumes runs |
 | `src/meska_brain/agent/llm.py` | Model access (any OpenAI-compatible endpoint) |
+| `src/meska_brain/report.py` | Printable learner report, built from approved findings only |
+| `src/meska_brain/school.py` | Whole-school map by topic (never ranks learners) and its GraphML export |
 | `src/meska_brain/web/` | Teacher web app (FastAPI and one HTML file) |
 | `src/meska_brain/synth.py` | Synthetic cohort and sample documents |
 | `src/meska_brain/evals.py` | The evaluation set that writes `EVALS.md` |
-| `tests/` | 185 tests, no model needed |
+| `tests/` | 193 tests, no model needed |
 
 ## Commands
 
@@ -53,7 +55,9 @@ uv run meska learners        # list learners
 uv run meska run A-17 --file data/inbox/quiz_sheet_A17_2025-T1.md
 uv run meska pending         # what is waiting for a teacher
 uv run meska answer <request_id> --teacher <id> --text "..."   # answer the agent's question, then `meska resume`
-uv run meska eval --skip-model   # engine tasks only
+uv run meska report A-17     # printable report, approved findings only
+uv run meska export-graph    # school graph as GraphML, for Gephi or Neo4j
+uv run meska eval --skip-model   # engine tasks only (this rewrites the table in EVALS.md)
 uv run meska eval --repeats 1    # full evaluation, needs a model
 ```
 

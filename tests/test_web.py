@@ -220,3 +220,17 @@ def test_a_teacher_answers_a_record_request(client):
     assert client.get("/api/review/pending").json()["requests"] == []
     listed = client.get("/api/requests", params={"learner_id": learner["id"]}).json()["requests"]
     assert listed[0]["answered_by_name"]
+
+
+def test_school_graph_and_printable_report_are_served(client):
+    graph = client.get("/api/school/graph").json()
+    assert graph["totals"]["learners"] == 6 and any(n["type"] == "concept" for n in graph["nodes"])
+    lid = client.get("/api/learners").json()["learners"][0]["learner_id"]
+    data = client.get(f"/api/learners/{lid}/report")
+    assert data.status_code == 200 and data.json()["learner"]["learner_id"] == lid
+    page = client.get(f"/learners/{lid}/report")
+    assert page.status_code == 200 and page.headers["content-type"].startswith("text/html")
+    assert "Learning report" in page.text
+    assert client.get("/learners/nope/report").status_code == 400
+    home = client.get("/").text
+    assert "viewSchool" in home and "mapSvg" in home

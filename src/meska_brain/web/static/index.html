@@ -159,6 +159,10 @@ svg text { font-family: inherit; }
 .node.is-root .ring.path { stroke-width: 5; }
 .node .tag { display: none; font-size: 10px; font-weight: 700; }
 .node.is-root .tag.root, .node.is-unknown .tag.unk { display: block; fill: #0A0A0A; }
+.node .tag.starts { display: block; fill: #A63F00; }
+.btnlink { display: inline-flex; align-items: center; min-height: 40px; padding: 8px 16px; border: 1px solid var(--line); border-radius: 12px; background: #fff; color: var(--ink); font-weight: 600; text-decoration: none; }
+.btnlink:hover { border-color: var(--blue); }
+#detail h4 { margin: 14px 0 2px; font-size: 13px; }
 .tracing .node:not(.on-path):not(.is-unknown):not(.selected) { opacity: .4; }
 .node:focus-visible rect.body { stroke: var(--focus); stroke-width: 4; }
 
@@ -512,6 +516,7 @@ function db_period(r) { return r.year + "-T" + r.term; }
 // ---------------------------------------------------------------- navigation
 const NAV = [
   ["overview", "Class overview", "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"],
+  ["school", "School map", "M4 6l5-2 6 2 5-2v14l-5 2-6-2-5 2zM9 4v14M15 6v14"],
   ["learner", "Learners", "M12 12a4 4 0 100-8 4 4 0 000 8zM4 20c0-4 4-6 8-6s8 2 8 6"],
   ["teaching", "My teaching", "M5 4h11a3 3 0 013 3v13H8a3 3 0 01-3-3zM5 17a3 3 0 013-3h11"],
   ["review", "Review queue", "M10 6h10M10 12h10M10 18h10M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"],
@@ -585,7 +590,7 @@ function show(view) {
   root.className = state.view === "learner" ? "learner-view" : "";
   const fn = state.view === "learner"
     ? { profile: viewProfile, map: viewMap, patterns: viewPatterns, approved: viewApproved }[state.sub]
-    : { overview: viewOverview, teaching: viewTeaching, review: viewReview, agent: viewAgent, audit: viewAudit }[state.view];
+    : { overview: viewOverview, school: viewSchool, teaching: viewTeaching, review: viewReview, agent: viewAgent, audit: viewAudit }[state.view];
   Promise.resolve(fn(root)).catch((e) => root.append(h("p", { class: "err", role: "alert", text: e.message })));
   window.scrollTo(0, 0);
 }
@@ -772,7 +777,8 @@ async function viewProfile(root) {
   root.append(h("div", { class: "pagehead" },
     h("div", {}, h("h2", { text: d.learner.alias }),
       h("p", { class: "muted", text: "Grade " + d.learner.grade_now + ". Home language: " + langName(d.learner.home_language) + ". Followed from " + (t.first_period || "?") + " to " + (t.last_period || "?") + "." })),
-    h("button", { type: "button", class: "primary", onclick: () => show("learner/map") }, "Open the learning map")));
+    h("div", { class: "row" }, reportLink(state.learnerId),
+      h("button", { type: "button", class: "primary", onclick: () => show("learner/map") }, "Open the learning map"))));
 
   root.append(h("div", { class: "tiles" },
     tile("Records on file", num(t.records), d.records_by_kind.slice(0, 2).map((k) => num(k.n) + " " + (KIND_PLURAL[k.kind] || k.kind).toLowerCase()).join(", ")),
@@ -1006,34 +1012,11 @@ function stateFor(g, cid) {
   return "shaky";
 }
 
-async function viewMap(root) {
-  if (!state.learnerId) { root.append(h("p", { class: "empty", text: "No learners yet." })); return; }
-  root.append(h("p", { class: "muted", text: "Loading the map..." }));
-  let g = await getGraph(state.learnerId);
-  const subjects = g.subjects || [];
-  if (!state.subject || (state.subject !== "all" && !subjects.some((x) => x.id === state.subject))) state.subject = "all";
-  if (subjects.length > 1 && state.subject !== "all") {
-    const keep = (n) => n.type !== "concept" ? (n.type !== "strand" || g.strand_subject[n.id] === state.subject) : g.strand_subject[n.strand] === state.subject;
-    const nodes = g.nodes.filter(keep), ids = new Set(nodes.map((n) => n.id));
-    g = Object.assign({}, g, { nodes, edges: g.edges.filter((e) => ids.has(e.source) && ids.has(e.target)) });
-  }
-  g.byId = Object.fromEntries(g.nodes.map((n) => [n.id, n]));
-  const lastIdx = g.periods.length - 1;
-  state.periodIdx = Math.max(0, lastIdx);
-  const L = layout(g);
+// The curriculum drawn as columns of grades and rows of strands. Shared by the learner map and the school map.
+function mapSvg(g, L, label, onSelect) {
   const concepts = g.nodes.filter((n) => n.type === "concept");
   const reqEdges = g.edges.filter((e) => e.type === "requires" && L.pos[e.source] && L.pos[e.target]);
-
-  // legend
-  const legendItem = (st, text) => h("li", {}, legendSwatch(st), h("span", { text }));
-  const legend = h("ul", { class: "legend", "aria-label": "Legend" },
-    legendItem("strong", "Scores mostly secure so far"),
-    legendItem("shaky", "Still forming: mixed scores"),
-    legendItem("gap", "Low scores so far"),
-    legendItem("unseen", "No records yet (not the same as struggling)"));
-
-  // svg
-  const svg = s("svg", { id: "mapsvg", role: "group", "aria-label": "Curriculum map for " + g.learner.alias + ". Columns are grades, rows are strands.", width: L.width, height: L.height, viewBox: "0 0 " + L.width + " " + L.height });
+  const svg = s("svg", { id: "mapsvg", role: "group", "aria-label": label, width: L.width, height: L.height, viewBox: "0 0 " + L.width + " " + L.height });
   svg.append(s("defs", {},
     s("pattern", { id: "hatch", width: 8, height: 8, patternUnits: "userSpaceOnUse", patternTransform: "rotate(45)" },
       s("rect", { width: 8, height: 8, fill: "#f9dcc8" }), s("rect", { width: 3, height: 8, fill: "#eeb08a" })),
@@ -1086,11 +1069,40 @@ async function viewMap(root) {
     grp.append(t);
     grp.append(s("text", { class: "tag root", x: 0, y: -4, text: "START POINT TO CHECK" }));
     grp.append(s("text", { class: "tag unk", x: NODE_W - 4, y: -4, "text-anchor": "end", text: "no records" }));
-    grp.addEventListener("click", () => selectNode(c.id));
-    grp.addEventListener("keydown", (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); selectNode(c.id); } });
+    grp.addEventListener("click", () => onSelect(c.id));
+    grp.addEventListener("keydown", (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); onSelect(c.id); } });
     svg.append(grp);
     nodeEls[c.id] = grp;
   }
+  return { svg, nodeEls, edgeEls };
+}
+
+async function viewMap(root) {
+  if (!state.learnerId) { root.append(h("p", { class: "empty", text: "No learners yet." })); return; }
+  root.append(h("p", { class: "muted", text: "Loading the map..." }));
+  let g = await getGraph(state.learnerId);
+  const subjects = g.subjects || [];
+  if (!state.subject || (state.subject !== "all" && !subjects.some((x) => x.id === state.subject))) state.subject = "all";
+  if (subjects.length > 1 && state.subject !== "all") {
+    const keep = (n) => n.type !== "concept" ? (n.type !== "strand" || g.strand_subject[n.id] === state.subject) : g.strand_subject[n.strand] === state.subject;
+    const nodes = g.nodes.filter(keep), ids = new Set(nodes.map((n) => n.id));
+    g = Object.assign({}, g, { nodes, edges: g.edges.filter((e) => ids.has(e.source) && ids.has(e.target)) });
+  }
+  g.byId = Object.fromEntries(g.nodes.map((n) => [n.id, n]));
+  const lastIdx = g.periods.length - 1;
+  state.periodIdx = Math.max(0, lastIdx);
+  const L = layout(g);
+  const concepts = g.nodes.filter((n) => n.type === "concept");
+
+  // legend
+  const legendItem = (st, text) => h("li", {}, legendSwatch(st), h("span", { text }));
+  const legend = h("ul", { class: "legend", "aria-label": "Legend" },
+    legendItem("strong", "Scores mostly secure so far"),
+    legendItem("shaky", "Still forming: mixed scores"),
+    legendItem("gap", "Low scores so far"),
+    legendItem("unseen", "No records yet (not the same as struggling)"));
+
+  const { svg, nodeEls, edgeEls } = mapSvg(g, L, "Curriculum map for " + g.learner.alias + ". Columns are grades, rows are strands.", (cid) => selectNode(cid));
 
   const detail = h("aside", { id: "detail", class: "card", "aria-live": "polite", "aria-label": "Concept details" });
   const rangeId = "term-range";
@@ -1305,6 +1317,114 @@ async function viewPatterns(root) {
   root.append(wwBox);
 }
 
+// ---------------------------------------------------------------- printable report
+function reportLink(lid) {
+  return h("a", { class: "btnlink", href: "/learners/" + encodeURIComponent(lid) + "/report", target: "_blank", rel: "noopener" }, "Printable report");
+}
+
+// ---------------------------------------------------------------- school map
+const CLASS_WORDS = { strong: "Results across the class are mostly secure", shaky: "Results across the class are mixed", gap: "Results across the class are low", unseen: "No records yet (not the same as struggling)" };
+
+async function viewSchool(root) {
+  root.append(h("p", { class: "muted", text: "Loading the school map..." }));
+  const full = await api("/api/school/graph");
+  for (const n of full.nodes) state.labels[n.id] = n.label;
+  const subjects = full.subjects || [];
+  if (!state.schoolSubject || (state.schoolSubject !== "all" && !subjects.some((x) => x.id === state.schoolSubject))) state.schoolSubject = "all";
+  let g = full;
+  if (subjects.length > 1 && state.schoolSubject !== "all") {
+    const keep = (n) => full.strand_subject[n.type === "strand" ? n.id : n.strand] === state.schoolSubject;
+    const nodes = full.nodes.filter(keep), ids = new Set(nodes.map((n) => n.id));
+    g = Object.assign({}, full, { nodes, edges: full.edges.filter((e) => ids.has(e.source) && ids.has(e.target)) });
+  }
+  g.byId = Object.fromEntries(g.nodes.map((n) => [n.id, n]));
+  const concepts = g.nodes.filter((n) => n.type === "concept");
+  clear(root);
+  if (!concepts.length) { root.append(h("h2", { text: "School map" }), h("p", { class: "empty card", text: "No curriculum or records yet." })); return; }
+  const L = layout(g);
+  const detail = h("aside", { id: "detail", class: "card", "aria-live": "polite", "aria-label": "Topic details" });
+  const { svg, nodeEls, edgeEls } = mapSvg(g, L, "School map. Columns are grades, rows are strands.", (cid) => select(cid));
+  for (const c of concepts) {
+    const n = c.findings.root_cause;
+    if (n && nodeEls[c.id]) nodeEls[c.id].append(s("text", { class: "tag starts", x: 0, y: -4, text: "STARTS HERE: " + n }));
+  }
+
+  function paint() {
+    for (const c of concepts) {
+      const el = nodeEls[c.id];
+      if (!el) continue;
+      const taught = state.schoolTeacher && c.taught.some((t) => t.teacher_id === state.schoolTeacher);
+      el.setAttribute("class", "node s-" + c.state + (state.schoolSel === c.id ? " selected" : "") + (taught ? " on-path" : ""));
+      el.setAttribute("aria-label", c.label + ", grade " + c.grade + ". " + CLASS_WORDS[c.state] + (c.findings.root_cause ? ". " + c.findings.root_cause + " approved findings say a difficulty began here." : ""));
+      el.setAttribute("aria-pressed", state.schoolSel === c.id ? "true" : "false");
+    }
+    for (const e of edgeEls) e.el.setAttribute("class", "edge" + (state.schoolSel && (e.source === state.schoolSel || e.target === state.schoolSel) ? " hl" : ""));
+  }
+
+  function drawTopic(cid) {
+    const c = g.byId[cid];
+    const needs = g.edges.filter((e) => e.type === "requires" && e.target === cid).map((e) => e.source);
+    const leads = g.edges.filter((e) => e.type === "requires" && e.source === cid).map((e) => e.target);
+    const jump = (id) => h("li", {}, h("button", { type: "button", class: "linkbtn", style: "border:none;background:none;padding:0;min-height:0;color:#1f5f99;text-decoration:underline", onclick: () => select(id) }, labelOf(id)));
+    clear(detail).append(
+      h("h3", { text: c.label }),
+      h("p", { class: "small muted", text: "Grade " + c.grade + ", " + labelOf(c.strand) }),
+      h("dl", { class: "kv" },
+        h("dt", { text: "Records" }), h("dd", { text: num(c.records) }),
+        h("dt", { text: "Learners with records" }), h("dd", { text: c.learners + " of " + full.totals.learners }),
+        h("dt", { text: "Across the class" }), h("dd", { text: c.mean === null ? "No scored records" : Math.round(c.mean * 100) + "% on average. " + CLASS_WORDS[c.state] + "." })),
+      h("h4", { text: "Taught by" }),
+      c.taught.length ? h("ul", { style: "margin:4px 0;padding-left:18px" }, c.taught.map((t) => h("li", { text: t.teacher + ", " + t.approach }))) : h("p", { class: "small muted", text: "No teaching unit is recorded for this topic." }),
+      h("h4", { text: "Approved findings about this topic" }),
+      c.approved_for.length
+        ? h("ul", { style: "margin:4px 0;padding-left:18px" }, c.approved_for.map((a) => h("li", {}, h("button", { type: "button", class: "linkbtn", style: "border:none;background:none;padding:0;min-height:0;color:#1f5f99;text-decoration:underline", onclick: () => { state.sel = cid; state.trace = null; pickLearner(a.learner_id, "map"); } }, a.alias), ": " + (KIND[a.kind] || a.kind))))
+        : h("p", { class: "small muted", text: "None yet. A learner is named here only after a teacher approves a finding." }),
+      needs.length ? h("div", {}, h("h4", { text: "Needs first" }), h("ul", { style: "margin:4px 0;padding-left:18px" }, needs.map(jump))) : null,
+      leads.length ? h("div", {}, h("h4", { text: "Is needed for" }), h("ul", { style: "margin:4px 0;padding-left:18px" }, leads.map(jump))) : null);
+  }
+
+  function select(cid) {
+    state.schoolSel = cid;
+    paint();
+    drawTopic(cid);
+    const el = nodeEls[cid];
+    if (el) el.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
+
+  const legendItem = (st) => h("li", {}, legendSwatch(st), h("span", { text: CLASS_WORDS[st] }));
+  const subjectPick = h("select", { id: "school-subject" }, [{ id: "all", label: "All subjects" }, ...subjects].map((x) => h("option", { value: x.id, selected: x.id === state.schoolSubject, text: x.label })));
+  subjectPick.addEventListener("change", () => { state.schoolSubject = subjectPick.value; state.schoolSel = null; show("school"); });
+  const teacherPick = h("select", { id: "school-teacher" }, h("option", { value: "", text: "Nobody" }), full.teachers.filter((t) => t.topics).map((t) => h("option", { value: t.id, selected: t.id === state.schoolTeacher, text: t.name + " (" + t.topics + " topics)" })));
+  teacherPick.addEventListener("change", () => { state.schoolTeacher = teacherPick.value || null; paint(); });
+
+  const starts = full.nodes.filter((n) => n.type === "concept" && n.findings.root_cause).sort((a, b) => b.findings.root_cause - a.findings.root_cause || a.grade - b.grade).slice(0, 6);
+  const startsCard = h("section", { class: "card" }, h("h3", { text: "Where teachers have agreed difficulties begin" }),
+    h("p", { class: "muted", text: "Topics named as a starting point in findings a teacher approved. This counts findings by topic. It does not rank learners." }),
+    starts.length
+      ? h("table", {}, h("thead", {}, h("tr", {}, h("th", { text: "Topic" }), h("th", { text: "Grade" }), h("th", { text: "Approved findings" }), h("th", { text: "Across the class" }))),
+          h("tbody", {}, starts.map((n) => h("tr", {},
+            h("td", {}, h("button", { type: "button", class: "linkbtn", style: "border:none;background:none;padding:0;min-height:0;color:#1f5f99;text-decoration:underline", onclick: () => { if (!g.byId[n.id]) { state.schoolSubject = "all"; state.schoolSel = n.id; show("school"); } else select(n.id); } }, n.label)),
+            h("td", { text: n.grade }), h("td", { text: n.findings.root_cause }), h("td", { text: n.mean === null ? "No scored records" : Math.round(n.mean * 100) + "%" })))))
+      : h("p", { class: "empty", text: "No root-cause finding has been approved yet." }));
+
+  const t = full.totals;
+  root.append(
+    h("div", { class: "map-top" },
+      h("div", {}, h("h2", { text: "School map" }),
+        h("p", { class: "muted", text: t.learners + " learners, " + t.topics_with_records + " of " + t.topics + " topics have records, " + t.approved_findings + " findings approved by teachers. Records are added up by topic. Learners are never ranked, and a learner is named only where a teacher approved a finding." }),
+        h("div", { class: "row", style: "margin:8px 0" },
+          subjects.length > 1 ? h("div", {}, h("label", { for: "school-subject", text: "Subject" }), subjectPick) : null,
+          h("div", {}, h("label", { for: "school-teacher", text: "Outline what this teacher taught" }), teacherPick))),
+      h("ul", { class: "legend", "aria-label": "Legend" }, legendItem("strong"), legendItem("shaky"), legendItem("gap"), legendItem("unseen"))),
+    h("div", { class: "map-cols" },
+      h("div", { class: "mapbox", tabindex: 0, role: "region", "aria-label": "Scrollable school map" }, svg),
+      detail),
+    startsCard);
+  paint();
+  if (state.schoolSel && g.byId[state.schoolSel]) drawTopic(state.schoolSel);
+  else clear(detail).append(h("h3", { text: "Select a topic" }), h("p", { class: "muted", text: "Click or press Enter on any box to see how the class is doing on it, who taught it and how, and which approved findings point to it." }));
+}
+
 // ---------------------------------------------------------------- review queue
 async function viewReview(root) {
   const p = await api("/api/review/pending");
@@ -1456,7 +1576,8 @@ async function viewApproved(root) {
   const when = (iso) => (iso || "").slice(0, 10);
   clear(root);
   root.append(h("h2", { text: "Approved for " + aliasOf(state.learnerId) }),
-    h("p", { class: "muted", text: "Only what a named teacher has approved appears here. Each item shows who approved it and the records it rests on." }));
+    h("p", { class: "muted", text: "Only what a named teacher has approved appears here. Each item shows who approved it and the records it rests on." }),
+    h("p", {}, reportLink(state.learnerId)));
 
   root.append(h("h3", { class: "section-title", text: "Notes (" + notes.length + ")" }));
   if (!notes.length) root.append(h("p", { class: "empty card", text: "No note has been approved for this learner yet." }));

@@ -10,11 +10,11 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from .. import db, graph, review, tools
+from .. import db, graph, report, review, school, tools
 from ..config import get_settings
 from ..curriculum import load_pack
 from . import dashboard, people
@@ -92,6 +92,23 @@ def learners() -> dict:
 @app.get("/api/overview")
 def overview() -> dict:
     return dashboard.overview()
+
+
+@app.get("/api/school/graph")
+def school_graph() -> dict:
+    """The whole school by topic. It never ranks learners."""
+    return school.school_graph()
+
+
+@app.get("/api/learners/{learner_id}/report")
+def learner_report(learner_id: str) -> dict:
+    return report.build(learner_id)
+
+
+@app.get("/learners/{learner_id}/report", response_class=HTMLResponse)
+def learner_report_page(learner_id: str) -> str:
+    """A printable page with only what a named teacher has approved."""
+    return report.render_html(report.build(learner_id))
 
 
 @app.get("/api/learners/{learner_id}/dashboard")
