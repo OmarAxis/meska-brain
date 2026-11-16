@@ -32,3 +32,5 @@ Thumbs.db
 # written by `meska report` and `meska export-graph`
 reports/
 exports/
+# the pitch video and its source: large, kept out of the repository
+pitch-video/
