@@ -1,0 +1,70 @@
+[
+ {
+  "name": "start: class overview",
+  "t": 0
+ },
+ {
+  "name": "learning map for Tendai",
+  "t": 10.37
+ },
+ {
+  "name": "trace back: records cannot tell",
+  "t": 13.44
+ },
+ {
+  "name": "agent started",
+  "t": 26
+ },
+ {
+  "name": "audit log while the agent works",
+  "t": 29.3
+ },
+ {
+  "name": "agent paused: waiting_for_teacher \"records\"",
+  "t": 52.55
+ },
+ {
+  "name": "the agent's question on screen",
+  "t": 54.3
+ },
+ {
+  "name": "teacher answered: record added",
+  "t": 65.76
+ },
+ {
+  "name": "agent page: second pass running",
+  "t": 69.56
+ },
+ {
+  "name": "audit log: request, answer, new records",
+  "t": 77.36
+ },
+ {
+  "name": "school map",
+  "t": 86.17
+ },
+ {
+  "name": "agent paused again: waiting_for_teacher \"findings\"",
+  "t": 114.37
+ },
+ {
+  "name": "the finding, with chain, reasons and chart",
+  "t": 116.09
+ },
+ {
+  "name": "teacher approved",
+  "t": 126.26
+ },
+ {
+  "name": "audit log: the approval by a named teacher",
+  "t": 130.26
+ },
+ {
+  "name": "printable report",
+  "t": 136.81
+ },
+ {
+  "name": "end",
+  "t": 144.83
+ }
+]

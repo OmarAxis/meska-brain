@@ -7,6 +7,15 @@ Meska Brain follows one learner across years and shows a teacher where that lear
 
 Entry for the African Agentic AI Design Challenge, Education track "The Long View", sub-theme "Longitudinal strength tracking". Status: a working prototype on synthetic data. It has not been tried with a real teacher. See [What is not finished](#what-is-not-finished).
 
+## Videos
+
+| Video | Length | What it is |
+|---|---|---|
+| [Demo for the judges](media/meska-brain-demo.mp4) | 2:25 | One continuous, uncut screen recording of the real app during a real agent run on the local open-weights model `qwen3.5-9b`. It shows a trace that cannot be finished, the agent's tool calls arriving in the audit log, the agent asking a teacher for the missing record, the teacher's answer, the finding with its reasons, the approval by a named teacher, and the report. |
+| [Pitch](media/meska-brain-pitch.mp4) | 1:01 | A short explainer built from real screens of the app. It is edited, so it is not the demo. |
+
+About both: the data is synthetic and the learners' names are invented. The narration is a computer voice, added after recording. In the demo the picture is not cut or sped up; an orange dot is drawn on the page to show where each click lands, because a page recording has no mouse pointer. [media/demo-timeline.json](media/demo-timeline.json) lists the moment each step happens.
+
 ## Run it
 
 ```
@@ -225,6 +234,7 @@ src/meska_brain/
 packs/             curriculum packs and note phrase templates
 data/              synthetic inbox files and ground truth (the database is generated)
 tests/, evals/results/, docs/
+media/             the demo video, the pitch video and the demo's timeline
 ```
 
 Other files: [SECURITY.md](SECURITY.md) (what the code enforces and what it does not yet), [ARCHITECTURE.md](ARCHITECTURE.md), [DESCRIPTION.md](DESCRIPTION.md), [EVALS.md](EVALS.md), [docs/CONTRACT.md](docs/CONTRACT.md) (the interfaces the parts were built against), [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md), [docs/CLOUD_TASKS.md](docs/CLOUD_TASKS.md).
