@@ -288,8 +288,9 @@ def render_html(data: dict[str, Any]) -> str:
         '<p class="empty">No finding has been approved by a teacher yet, so there is nothing to report.</p>'
     notes = "".join(_note(n) for n in data["notes"]) or '<p class="empty">No note has been approved yet.</p>'
     gaps = f'<h2>What the records cannot tell</h2><ul>{"".join(_gap(g) for g in data["gaps"])}</ul>' if data["gaps"] else ""
-    waiting = (f' {data["waiting"]} item(s) are still waiting for a teacher and are not in this report.'
-               if data["waiting"] else "")
+    count = data["waiting"]
+    waiting = (f' {count} {"item is" if count == 1 else "items are"} still waiting for a teacher and not in this report.'
+               if count else "")
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Learning report: {escape(learner["alias"])}</title><style>{_CSS}</style></head>

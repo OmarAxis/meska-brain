@@ -36,6 +36,19 @@ class Usage:
                 "output_tokens": self.output_tokens, "seconds": round(self.seconds, 1)}
 
 
+def list_models(timeout: float = 3.0) -> list[str]:
+    """Chat models the configured endpoint serves (LM Studio lists what is downloaded). Embedding
+    models are left out. Raises when the endpoint cannot be reached."""
+    import httpx
+
+    settings = get_settings()
+    response = httpx.get(f"{settings.llm_base_url.rstrip('/')}/models", timeout=timeout,
+                         headers={"Authorization": f"Bearer {settings.llm_api_key}"})
+    response.raise_for_status()
+    ids = [str(item.get("id")) for item in response.json().get("data", []) if item.get("id")]
+    return sorted(i for i in ids if "embed" not in i.lower())
+
+
 def chat_model(which: str = "local", model: str | None = None) -> ChatOpenAI:
     """`local` is the open-weights model. `frontier` is optional and only used when configured."""
     s = get_settings()

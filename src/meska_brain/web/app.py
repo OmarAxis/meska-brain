@@ -6,6 +6,7 @@ There is no real sign-in. A teacher is chosen from a list so every decision carr
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +21,7 @@ from ..curriculum import load_pack
 from . import dashboard, people
 
 STATIC = Path(__file__).with_name("static")
+_MODEL_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,119}")
 
 app = FastAPI(title="Meska Brain", docs_url=None, redoc_url=None)
 # Brand assets (the logo). The page itself is served at "/".
@@ -65,6 +67,7 @@ class RequestAnswer(BaseModel):
 class RunRequest(BaseModel):
     learner_id: str
     inbox_file: str | None = None
+    model: str | None = None
 
 
 def _runner():
@@ -363,7 +366,23 @@ def start_run(body: RunRequest) -> dict:
         if not path.is_file():
             raise ValueError(f"No file called '{Path(body.inbox_file).name}' in the inbox.")
         task["inbox_file"] = str(path)
+    if body.model:
+        if not _MODEL_ID.fullmatch(body.model):
+            raise ValueError("That model id has characters a model id cannot have.")
+        task["model"] = body.model
     return _runner().start(task)
+
+
+@app.get("/api/models")
+def models() -> dict:
+    """The models the local endpoint offers, so a teacher or a tester can pick one for a run."""
+    settings = get_settings()
+    try:
+        from ..agent import llm
+        found, problem = llm.list_models(), None
+    except Exception as exc:  # noqa: BLE001 - the endpoint being off must not break the page
+        found, problem = [], f"The model endpoint at {settings.llm_base_url} did not answer ({type(exc).__name__})."
+    return {"default": settings.llm_model, "models": found, "endpoint": settings.llm_base_url, "problem": problem}
 
 
 @app.get("/api/runs")

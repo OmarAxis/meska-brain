@@ -43,6 +43,29 @@ TERM_DATES = {  # (start month, start day, end month, end day)
     3: (9, 1, 12, 5),
 }
 
+# A whole school (`generate(school=True)`): more staff, each teaching a subject, each with a described
+# way of teaching. Every name is fictional.
+SCHOOL_NAME = "Meska Demonstration School (synthetic)"
+SCHOOL_LEARNERS = 36
+EXTRA_TEACHERS = ["Ibrahim Diallo", "Thandiwe Nkosi", "Mariam El-Sayed", "Chinedu Okafor"]
+STAFF_PER_SUBJECT = {"maths": 3, "language": 3, "science": 2, "technology": 2}
+TEACHER_LANGUAGES = ["English, Swahili", "English, Arabic", "English, French", "English, Hausa",
+                     "English, Amharic", "English, Kinyarwanda", "English, Wolof", "English, isiZulu",
+                     "Arabic, English", "English, Igbo"]
+CLASS_SIZES = ["38", "44", "52", "41", "60", "47", "55", "36", "49", "58"]
+WHAT_WORKS = [
+    "Starting with {approach} before any written work. Pairs explain their answer to each other.",
+    "Short daily practice, then {approach} once a week. I keep one exercise book per learner as a record.",
+    "{approach}, with examples from the market and the farm. Learners who finish early help a neighbour.",
+    "{approach} in small groups while the rest work from the board. I mark five books a day.",
+]
+WANTS_HELP = [
+    "Finding time to see each learner's work when the class is this large.",
+    "Knowing what a learner covered before they reached my class.",
+    "Teaching {strand} to learners who missed the earlier grade.",
+    "Writing to families in their own language.",
+]
+
 MILD_LANGS = ["ar", "sw", "fr", "am", "ha", "en"]
 MILD_START_GRADES = [3, 4, 5, 4, 3, 5]
 
@@ -234,6 +257,63 @@ def _build_specs(rng: random.Random, n_learners: int, years: int, by_id: dict[st
 # --------------------------------------------------------------------------- generation
 
 
+def _staff_school(db_path: Path | str | None, seed: int, pack_id: str) -> dict[str, Any]:
+    """Turn the generated cohort into a staffed school: ten teachers, each teaching one subject, every
+    teaching unit given to a teacher of its subject, and a described way of teaching for each teacher.
+    It runs after the cohort is written and uses its own random stream, so the cohort itself is the
+    same with or without it."""
+    from .curriculum import load_pack
+
+    rng = random.Random(seed + 1000)
+    pack = load_pack(pack_id)
+    subjects = list(pack.subjects) or [pack.subject]
+    with db.connect(db_path) as conn:
+        conn.executemany("INSERT INTO teachers (id, name, subjects) VALUES (?, ?, '[]')",
+                         [(f"tch_{rng.getrandbits(40):010x}", name) for name in EXTRA_TEACHERS])
+        roster = db.rows(conn, "SELECT id, name FROM teachers ORDER BY rowid")
+        staff: dict[str, list[str]] = {subject: [] for subject in subjects}
+        waiting = list(roster)
+        for subject in subjects:                      # fill each subject's quota in turn
+            for _ in range(STAFF_PER_SUBJECT.get(subject, 2)):
+                if waiting:
+                    staff[subject].append(waiting.pop(0)["id"])
+        for extra, teacher in enumerate(waiting):     # anyone left joins a subject, round robin
+            staff[subjects[extra % len(subjects)]].append(teacher["id"])
+        subject_of = {tid: subject for subject, tids in staff.items() for tid in tids}
+        conn.executemany("UPDATE teachers SET subjects = ? WHERE id = ?",
+                         [(db.jdump([subject_of[t["id"]]]), t["id"]) for t in roster if t["id"] in subject_of])
+
+        units = db.rows(conn, "SELECT id, year, grade, concept_id FROM teaching_units")
+        moves = []
+        for unit in units:
+            concept = pack.concepts[unit["concept_id"]]
+            team = staff.get(pack.strand_subject.get(concept.strand, subjects[0])) or [roster[0]["id"]]
+            moves.append((team[(unit["grade"] + unit["year"]) % len(team)], unit["id"]))
+        conn.executemany("UPDATE teaching_units SET teacher_id = ? WHERE id = ?", moves)
+        conn.execute("UPDATE evidence SET teacher_id = (SELECT u.teacher_id FROM teaching_units u "
+                     "WHERE u.id = evidence.unit_id) WHERE unit_id IS NOT NULL")
+
+        # Each teacher's description follows what they recorded: the approach used most is "often".
+        for index, teacher in enumerate(roster):
+            used = db.rows(conn, "SELECT approach_id, COUNT(*) AS n FROM teaching_units WHERE teacher_id = ? "
+                                 "GROUP BY approach_id ORDER BY n DESC, approach_id", (teacher["id"],))
+            ranked = [u["approach_id"] for u in used]
+            third = max(1, len(ranked) // 3)
+            said = {a: "often" if i < third else "sometimes" if i < 2 * third else "rarely" for i, a in enumerate(ranked)}
+            said.update({a: "rarely" for a in pack.approaches if a not in said})
+            taught = db.rows(conn, "SELECT DISTINCT concept_id FROM teaching_units WHERE teacher_id = ?", (teacher["id"],))
+            strands = sorted({pack.label(pack.concepts[t["concept_id"]].strand) for t in taught}) or ["the subject"]
+            favourite = pack.label(ranked[0]) if ranked else "worked examples"
+            answers = {"approaches": said, "languages": TEACHER_LANGUAGES[index % len(TEACHER_LANGUAGES)],
+                       "class_size": CLASS_SIZES[index % len(CLASS_SIZES)],
+                       "what_works": rng.choice(WHAT_WORKS).format(approach=favourite),
+                       "wants_help_with": rng.choice(WANTS_HELP).format(strand=rng.choice(strands))}
+            conn.execute("INSERT INTO teacher_profiles (teacher_id, answers, updated_at) VALUES (?, ?, ?)",
+                         (teacher["id"], db.jdump(answers), CREATED_AT))
+    return {"name": SCHOOL_NAME, "teachers": len(roster), "teachers_by_subject": {s: len(t) for s, t in staff.items()},
+            "teaching_profiles": len(roster)}
+
+
 def generate(
     db_path: Path | str | None = None,
     seed: int = 7,
@@ -241,6 +321,7 @@ def generate(
     years: int = 4,
     pack_id: str | None = None,
     out_dir: Path | str | None = None,
+    school: bool = False,
 ) -> dict[str, Any]:
     rng = random.Random(seed)
     ids = _Ids(rng)
@@ -489,7 +570,7 @@ def generate(
     # ---- write to the database
     db.init_db(db_path)
     with db.connect(db_path) as conn:
-        for table in ("approvals", "summaries", "findings", "audit_log", "evidence",
+        for table in ("record_requests", "approvals", "summaries", "findings", "audit_log", "evidence",
                       "teaching_units", "learners", "teacher_profiles", "teachers"):
             conn.execute(f"DELETE FROM {table}")
         conn.executemany(
@@ -658,8 +739,12 @@ def generate(
         "- `register_*.csv`: attendance for three learners, with a blank value on purpose\n",
         encoding="utf-8")
 
+    staffed = _staff_school(db_path, seed, pack_id) if school else None
+    if staffed:
+        counts["teachers"] = staffed["teachers"]
     total = counts["evidence"]
     return {
+        "school": staffed,
         "counts": counts,
         "evidence_by_kind": by_kind,
         "logged_late": late,

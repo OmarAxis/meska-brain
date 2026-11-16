@@ -40,7 +40,7 @@ Who does what:
 | `src/meska_brain/web/` | Teacher web app (FastAPI and one HTML file) |
 | `src/meska_brain/synth.py` | Synthetic cohort and sample documents |
 | `src/meska_brain/evals.py` | The evaluation set that writes `EVALS.md` |
-| `tests/` | 193 tests, no model needed |
+| `tests/` | 203 tests, no model needed |
 
 ## Commands
 
@@ -50,12 +50,13 @@ uv run meska demo            # seed if needed, open the teacher app at http://12
 uv run pytest -q             # tests (no model needed)
 uv run ruff check src tests  # lint
 uv run meska seed --pack generic-school   # all four subjects (default seed is maths only)
+uv run meska seed --school   # a whole school: four subjects, 36 learners, ten subject teachers with profiles
 uv run meska story           # a ready state for presenting, no model used
 uv run meska learners        # list learners
 uv run meska run A-17 --file data/inbox/quiz_sheet_A17_2025-T1.md
 uv run meska pending         # what is waiting for a teacher
 uv run meska answer <request_id> --teacher <id> --text "..."   # answer the agent's question, then `meska resume`
-uv run meska report A-17     # printable report, approved findings only
+uv run meska report A-17     # printable report, approved findings only (--all for every learner)
 uv run meska export-graph    # school graph as GraphML, for Gephi or Neo4j
 uv run meska eval --skip-model   # engine tasks only (this rewrites the table in EVALS.md)
 uv run meska eval --repeats 1    # full evaluation, needs a model
@@ -96,7 +97,10 @@ These come from the challenge. Breaking one disqualifies the entry.
 ## Working here
 
 - Work on a branch and open a pull request. Do not push to `main`.
-- Before every commit: `uv run pytest -q` and `uv run ruff check src tests` must both pass.
+- Before every commit: `uv run pytest -q` and `uv run ruff check src tests` must both pass. CI runs both on
+  every push and pull request (`.github/workflows/ci.yml`).
+- `meska seed` rewrites the tracked files in `data/`. Restore them with `git checkout -- data/` before committing.
+- `SECURITY.md` lists what the code enforces. If you change one of those rules, change the page and its test.
 - Add a test with every fix.
 - Docs are written in plain English with no em dashes or en dashes.
 - Known weak spots are listed at the end of `EVALS.md`. Start there.
