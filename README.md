@@ -12,21 +12,18 @@ Entry for the African Agentic AI Design Challenge, Education track "The Long Vie
 | Video | Length | What it is |
 |---|---|---|
 | [Demo for the judges](media/meska-brain-demo.mp4) | 2:25 | One continuous, uncut screen recording of the real app during a real agent run on the local open-weights model `qwen3.5-9b`. It shows a trace that cannot be finished, the agent's tool calls arriving in the audit log, the agent asking a teacher for the missing record, the teacher's answer, the finding with its reasons, the approval by a named teacher, and the report. |
-| [Pitch](media/meska-brain-pitch.mp4) | 1:01 | A short explainer built from real screens of the app. It is edited, so it is not the demo. |
+| [Demo, one-minute cut](media/meska-brain-demo-1min.mp4) | 1:00 | The same recording with the waiting cut out, for showing inside a talk. It is edited: ten pieces of the uncut recording joined in order, nothing sped up, with a shorter narration. The uncut one above is the demo of record. |
+| [Pitch](media/meska-brain-pitch.mp4) | 1:00 | A short explainer built from real screens of the app. It is edited, so it is not the demo. |
 
-About both: the data is synthetic and the learners' names are invented. The narration is a computer voice, added after recording. In the demo the picture is not cut or sped up; an orange dot is drawn on the page to show where each click lands, because a page recording has no mouse pointer. [media/demo-timeline.json](media/demo-timeline.json) lists the moment each step happens.
+About all three: the data is synthetic and the learners' names are invented. The narration is a computer voice, added after recording. In the uncut demo the picture is not cut or sped up; an orange dot is drawn on the page to show where each click lands, because a page recording has no mouse pointer. [media/demo-timeline.json](media/demo-timeline.json) lists the moment each step happens in the uncut demo.
 
 ## Presentation
 
-[The presentation deck](media/meska-brain-deck.pdf) (PDF, nine slides, 6 MB) is the one shown at MCP Dev Summit Nairobi 2026: why this matters, the problem, the connected graphs, how the system works, tracing a root cause, why it suits a school with few resources, the safety rules, and what is and is not finished.
+[The presentation deck](media/meska-brain-deck.pdf) (PDF, nine slides, 8 MB) is the one shown at MCP Dev Summit Nairobi 2026: why this matters, the problem, the connected graphs, how the system works, tracing a root cause, why it suits a school with few resources, the safety rules, and what is and is not finished.
 
-The deck is a picture of the project at the time it was drawn, and the code has moved on since. Where the two differ, this repository is right:
+Each slide is a picture. Six numbers on slides 5 and 9 were corrected in place after the deck was drawn, so that they match this repository: 12 MCP tools, 4 that write, 219 tests, and 13 evaluation tasks that need a model. Nothing else on any slide was changed.
 
-| The deck says | The repository has |
-|---|---|
-| 10 MCP tools, 3 that write | 12 tools, 4 that write (the agent can now ask a teacher for a missing record) |
-| 164 tests | 219 tests |
-| Four graphs | Three maps (curriculum, learner, teacher) plus a whole-school view by topic |
+One difference in wording remains. The deck speaks of four graphs; the code has three maps (curriculum, learner, teacher) plus a whole-school view by topic.
 
 The pictures of children and teachers in the deck are illustrations, not learners. No real learner appears anywhere in this project.
 
@@ -83,7 +80,7 @@ Under **My teaching**, a teacher describes how often they use each teaching appr
 
 **A whole school.** `uv run meska seed --school` builds a larger synthetic school: all four subjects, 36 learners followed over four years, and ten teachers who each teach one subject and have described how they teach. Every teaching unit belongs to a teacher of its subject. The learners and their records are the same as without `--school`; only the staffing is added. `uv run meska report --all` then writes a report for every learner.
 
-**Choosing a model.** The Agent page lists the models your local endpoint serves (LM Studio lists what you have downloaded) and uses the one you pick for that run. It can also use OpenAI or Claude, as a comparison: open "Cloud models" on that page and paste your own key, or set `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` before starting the app. A typed key is kept in memory until the app stops and is never saved. A cloud run sends the document and the records to that company, so use it with synthetic data only. Only results from an open-weights model belong in `EVALS.md`.
+**Choosing a model.** The Agent page lists the models your local endpoint serves (LM Studio lists what you have downloaded) and uses the one you pick for that run. It can also use OpenAI or Claude, as a comparison: open "Cloud models" on that page and paste your own key, or set `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` before starting the app. A typed key is kept in memory until the app stops and is never saved. A cloud run sends the document and the records to that company, so use it with synthetic data only. Only results from an open-weights model belong in `EVALS.md`. On 2026-11-16 one full run was made on `gpt-4.1-mini` and one on `claude-haiku-5-5`, each on synthetic data and each through both teacher gates; the OpenAI run also asked a teacher for a missing record and used the answer. One run each shows that the cloud path works. It is not an evaluation.
 
 **Names.** Learners are shown by an invented first name and an initial ("Amani K."), so a class reads like a class. Each also has a record code (A-17), which is what documents, the tools and the model use. No tool result and no prompt carries a name.
 
@@ -194,7 +191,7 @@ uv run meska eval      # engine and server tasks (no model) plus agent tasks on 
 uv run meska eval --skip-model   # only the deterministic tasks
 ```
 
-`meska eval` runs every task on a fresh copy of the seeded database, so tasks cannot help each other. There are 15 engine tasks and 11 agent tasks. Engine tasks check the planted cases in `data/ground_truth.json` (the root cause for A-17, the strength held across years, what worked for B-04, a root that must be reported as unknown for D-09, too little data for E-22, no pattern for F-12), the server's refusals, that no confident root is claimed over a hole in the record, that no claim is made twice, and how often the guard blocks a probe set of harmful and neutral sentences. Agent tasks run the full agent on documents, including a document that names a different learner, a register that lists several learners, a document that contains instructions to the model, a Swahili and an Arabic note, an audit-completeness check on a full run, and an HTML page that only the borrowed markitdown server can read.
+`meska eval` runs every task on a fresh copy of the seeded database, so tasks cannot help each other. There are 15 engine tasks and 13 agent tasks. Engine tasks check the planted cases in `data/ground_truth.json` (the root cause for A-17, the strength held across years, what worked for B-04, a root that must be reported as unknown for D-09, too little data for E-22, no pattern for F-12), the server's refusals, that no confident root is claimed over a hole in the record, that no claim is made twice, and how often the guard blocks a probe set of harmful and neutral sentences. Agent tasks run the full agent on documents, including a document that names a different learner, a register that lists several learners, a document that contains instructions to the model, a Swahili and an Arabic note, an audit-completeness check on a full run, and an HTML page that only the borrowed markitdown server can read.
 
 Results, with pass counts per task, tokens and seconds, are in [EVALS.md](EVALS.md), and the table shows a failing run when there is one. The guard task reports block and false-positive rates there, including a held-out set the patterns were not tuned on, where the guard does clearly worse. Agent tasks use a 9B model, so repeat runs can differ; the table shows how often each task passed.
 
@@ -248,7 +245,7 @@ src/meska_brain/
 packs/             curriculum packs and note phrase templates
 data/              synthetic inbox files and ground truth (the database is generated)
 tests/, evals/results/, docs/
-media/             the demo video, the pitch video, the demo's timeline and the presentation deck
+media/             the demo (uncut and a one-minute cut), the pitch video, the demo's timeline and the deck
 ```
 
 Other files: [SECURITY.md](SECURITY.md) (what the code enforces and what it does not yet), [ARCHITECTURE.md](ARCHITECTURE.md), [DESCRIPTION.md](DESCRIPTION.md), [EVALS.md](EVALS.md), [docs/CONTRACT.md](docs/CONTRACT.md) (the interfaces the parts were built against), [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md), [docs/CLOUD_TASKS.md](docs/CLOUD_TASKS.md).
