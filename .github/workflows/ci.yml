@@ -61,6 +61,7 @@ jobs:
       - name: The teacher app starts and answers
         run: |
           uv run meska demo &
+          trap 'pkill -f "meska demo" || true' EXIT   # stop the app so the cache step after this job can finish
           for i in $(seq 1 30); do
             if curl -sf http://127.0.0.1:8765/api/overview > /dev/null; then break; fi
             sleep 1
