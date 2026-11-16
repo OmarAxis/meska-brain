@@ -16,6 +16,20 @@ Entry for the African Agentic AI Design Challenge, Education track "The Long Vie
 
 About both: the data is synthetic and the learners' names are invented. The narration is a computer voice, added after recording. In the demo the picture is not cut or sped up; an orange dot is drawn on the page to show where each click lands, because a page recording has no mouse pointer. [media/demo-timeline.json](media/demo-timeline.json) lists the moment each step happens.
 
+## Presentation
+
+[The presentation deck](media/meska-brain-deck.pdf) (PDF, nine slides, 6 MB) is the one shown at MCP Dev Summit Nairobi 2026: why this matters, the problem, the connected graphs, how the system works, tracing a root cause, why it suits a school with few resources, the safety rules, and what is and is not finished.
+
+The deck is a picture of the project at the time it was drawn, and the code has moved on since. Where the two differ, this repository is right:
+
+| The deck says | The repository has |
+|---|---|
+| 10 MCP tools, 3 that write | 12 tools, 4 that write (the agent can now ask a teacher for a missing record) |
+| 164 tests | 219 tests |
+| Four graphs | Three maps (curriculum, learner, teacher) plus a whole-school view by topic |
+
+The pictures of children and teachers in the deck are illustrations, not learners. No real learner appears anywhere in this project.
+
 ## Run it
 
 ```
@@ -234,7 +248,7 @@ src/meska_brain/
 packs/             curriculum packs and note phrase templates
 data/              synthetic inbox files and ground truth (the database is generated)
 tests/, evals/results/, docs/
-media/             the demo video, the pitch video and the demo's timeline
+media/             the demo video, the pitch video, the demo's timeline and the presentation deck
 ```
 
 Other files: [SECURITY.md](SECURITY.md) (what the code enforces and what it does not yet), [ARCHITECTURE.md](ARCHITECTURE.md), [DESCRIPTION.md](DESCRIPTION.md), [EVALS.md](EVALS.md), [docs/CONTRACT.md](docs/CONTRACT.md) (the interfaces the parts were built against), [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md), [docs/CLOUD_TASKS.md](docs/CLOUD_TASKS.md).
